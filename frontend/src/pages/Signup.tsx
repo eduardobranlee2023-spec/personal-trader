@@ -36,7 +36,7 @@ const Signup: React.FC = () => {
       if (error.message.includes('already registered')) {
         setError('Este email ya está registrado. Iniciá sesión.');
       } else {
-        setError('Error al registrarse. Intentá de nuevo.');
+        setError(`Error: ${error.message}`);
       }
     } else {
       setSuccess(true);

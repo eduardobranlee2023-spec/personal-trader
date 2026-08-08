@@ -66,6 +66,15 @@
     box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
   }
 
+  option {
+    background-color: var(--color-surfaceAlt);
+    color: var(--color-text);
+  }
+
+  [data-theme='light'] option {
+    background-color: var(--color-surface);
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }

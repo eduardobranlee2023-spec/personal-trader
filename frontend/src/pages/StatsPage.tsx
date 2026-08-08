@@ -197,8 +197,13 @@ const StatsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-text flex items-center gap-2.5">
             <BarChart2 className="w-6 h-6 text-primary" /> Estadísticas
           </h1>
-          <p className="text-textMuted text-sm mt-1">
+          <p className="text-textMuted text-sm mt-2 flex items-center gap-3">
             {stats.periodTrades.length} operaciones en el período seleccionado
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${
+              isPos ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
+            }`}>
+              {isPos ? 'RENTABLE' : 'NO RENTABLE'}
+            </span>
           </p>
         </div>
 

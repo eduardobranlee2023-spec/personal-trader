@@ -114,6 +114,12 @@ const FundingPage: React.FC = () => {
 
   const roiPositive = metrics.netRoi >= 0;
 
+  const totalBought = investments.length;
+  const approvedCount = investments.filter(i => i.status === 'aprobada').length;
+  const blownCount = investments.filter(i => i.status === 'rechazada').length;
+  const approvedPct = totalBought > 0 ? ((approvedCount / totalBought) * 100).toFixed(1) : '0.0';
+  const blownPct = totalBought > 0 ? ((blownCount / totalBought) * 100).toFixed(1) : '0.0';
+
   return (
     <AppLayout>
       {/* Header */}
@@ -130,7 +136,7 @@ const FundingPage: React.FC = () => {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
           <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
             <Target className="w-3.5 h-3.5 text-primary" /> Total Invertido
@@ -157,6 +163,15 @@ const FundingPage: React.FC = () => {
             {metrics.netRoi > 0 ? '+' : ''}{metrics.netRoi.toFixed(1)}%
           </div>
           <div className="text-xs text-textMuted mt-1">Recuperado vs. invertido</div>
+        </div>
+        <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
+          <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
+            <TrendingDown className="w-3.5 h-3.5 text-red-400" /> Tasa de Aprobación
+          </div>
+          <div className="text-2xl font-bold font-mono text-emerald-400">
+            {approvedPct}%
+          </div>
+          <div className="text-xs text-textMuted mt-1">Quemadas: <span className="text-red-400 font-mono">{blownPct}%</span></div>
         </div>
       </div>
 

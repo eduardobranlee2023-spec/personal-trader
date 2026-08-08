@@ -39,11 +39,16 @@ const Dashboard: React.FC = () => {
         <h1 className="text-3xl font-bold text-text">
           Hola, {profile?.full_name?.split(' ')[0] || 'Trader'} 👋
         </h1>
-        <p className="text-textMuted mt-1 text-sm">
+        <p className="text-textMuted mt-2 text-sm flex items-center gap-3">
           {isAll
             ? `Viendo todas las cuentas combinadas (${accounts.length})`
             : `Cuenta activa: ${selectedAccount?.name}`
           }
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${
+            isPositive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
+          }`}>
+            {isPositive ? 'RENTABLE' : 'NO RENTABLE'}
+          </span>
         </p>
       </div>
 

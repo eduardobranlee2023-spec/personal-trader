@@ -14,4 +14,5 @@ export type Profile = {
   created_at: string;
   access_granted_at: string | null;
   access_granted_by: string | null;
+  subscription_status?: string | null;
 }

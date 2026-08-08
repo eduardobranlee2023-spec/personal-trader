@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { Trade } from '../hooks/useTrades';
 import {
   Plus, BarChart2, TrendingUp, TrendingDown, Clock, Filter,
-  Pencil, ExternalLink, Trash2, ChevronRight
+  Pencil, ExternalLink, Trash2
 } from 'lucide-react';
 
 const statusBadge: Record<string, { bg: string; text: string; dot: string }> = {

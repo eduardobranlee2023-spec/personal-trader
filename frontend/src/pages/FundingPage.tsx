@@ -23,7 +23,7 @@ const FundingPage: React.FC = () => {
   const { trades } = useTrades();
   const { investments, metrics, isLoading, refresh } = useFundedInvestments(trades);
   const { accounts } = useAccounts();
-  const fundedAccounts = accounts.filter(a => a.type === 'fondeada');
+  const fundedAccounts = accounts.filter(a => a.account_type === 'fondeada');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<FundedInvestment | null>(null);

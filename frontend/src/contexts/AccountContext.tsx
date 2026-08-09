@@ -21,6 +21,7 @@ export type TradingAccount = {
   total_wins?: number;
   total_losses?: number;
   trade_count?: number;
+  total_withdrawn?: number;
 };
 
 export type AccountStats = {
@@ -30,6 +31,8 @@ export type AccountStats = {
   totalWins: number;
   totalLosses: number;
   totalTrades: number;
+  totalWithdrawals: number;
+  monthlyWithdrawals: number;
 };
 
 export const ALL_ACCOUNTS_ID = '__ALL__';
@@ -49,7 +52,7 @@ const AccountContext = createContext<AccountContextType>({
   selectedAccountId: ALL_ACCOUNTS_ID,
   setSelectedAccountId: () => {},
   selectedAccount: null,
-  globalStats: { totalInitialBalance: 0, totalCurrentBalance: 0, totalPnl: 0, totalWins: 0, totalLosses: 0, totalTrades: 0 },
+  globalStats: { totalInitialBalance: 0, totalCurrentBalance: 0, totalPnl: 0, totalWins: 0, totalLosses: 0, totalTrades: 0, totalWithdrawals: 0, monthlyWithdrawals: 0 },
   isLoading: true,
   refresh: async () => {},
 });
@@ -66,7 +69,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) { setIsLoading(false); return; }
     setIsLoading(true);
 
-    // Fetch accounts with aggregated trade data via a joined query
+    // Fetch accounts
     const { data: accs, error: accsErr } = await supabase
       .from('trading_accounts')
       .select('*')
@@ -75,18 +78,36 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (accsErr || !accs) { setIsLoading(false); return; }
 
-    // Fetch all trades for this user to compute per-account balances
+    // Fetch all trades
     const { data: trades } = await supabase
       .from('trades')
       .select('trading_account_id, result_amount, status')
       .eq('user_id', user.id);
 
+    // Fetch all withdrawals
+    const { data: withdrawals } = await supabase
+      .from('withdrawals')
+      .select('trading_account_id, amount, status, withdrawal_date')
+      .eq('user_id', user.id);
+
     const enriched: TradingAccount[] = accs.map(acc => {
       const accTrades = (trades || []).filter(t => t.trading_account_id === acc.id);
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      
+      const accWithdrawals = (withdrawals || []).filter(w => w.trading_account_id === acc.id && w.status === 'procesado');
+      const monthlyWithdrawals = accWithdrawals.filter(w => {
+        const d = new Date(w.withdrawal_date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      });
+      
       const total_pnl = accTrades.reduce((sum, t) => sum + (t.result_amount ?? 0), 0);
       const current_balance = (acc.initial_balance ?? 0) + total_pnl;
       const total_wins = accTrades.filter(t => t.status === 'ganada').length;
       const total_losses = accTrades.filter(t => t.status === 'perdida').length;
+      const total_withdrawn = accWithdrawals.reduce((sum, w) => sum + (w.amount ?? 0), 0);
+      const monthly_withdrawn = monthlyWithdrawals.reduce((sum, w) => sum + (w.amount ?? 0), 0);
+
       return {
         ...acc,
         total_pnl,
@@ -94,6 +115,8 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         total_wins,
         total_losses,
         trade_count: accTrades.length,
+        total_withdrawn,
+        monthly_withdrawn,
       };
     });
 
@@ -103,13 +126,15 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
-  const globalStats: AccountStats = {
+  const globalStats: AccountStats & { monthlyWithdrawals: number } = {
     totalInitialBalance: accounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0),
     totalCurrentBalance: accounts.reduce((s, a) => s + (a.current_balance ?? a.initial_balance ?? 0), 0),
     totalPnl: accounts.reduce((s, a) => s + (a.total_pnl ?? 0), 0),
     totalWins: accounts.reduce((s, a) => s + (a.total_wins ?? 0), 0),
     totalLosses: accounts.reduce((s, a) => s + (a.total_losses ?? 0), 0),
     totalTrades: accounts.reduce((s, a) => s + (a.trade_count ?? 0), 0),
+    totalWithdrawals: accounts.reduce((s, a) => s + (a.total_withdrawn ?? 0), 0),
+    monthlyWithdrawals: accounts.reduce((s, a) => s + ((a as any).monthly_withdrawn ?? 0), 0),
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId) ?? null;

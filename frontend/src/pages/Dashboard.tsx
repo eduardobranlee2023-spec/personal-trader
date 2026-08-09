@@ -22,6 +22,8 @@ const Dashboard: React.FC = () => {
     totalWins: selectedAccount?.total_wins ?? 0,
     totalLosses: selectedAccount?.total_losses ?? 0,
     totalTrades: selectedAccount?.trade_count ?? 0,
+    totalWithdrawals: selectedAccount?.total_withdrawn ?? 0,
+    monthlyWithdrawals: (selectedAccount as any)?.monthly_withdrawn ?? 0,
   };
 
   const isPositive = stats.totalPnl >= 0;
@@ -53,7 +55,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {/* Balance */}
         <div className="glass rounded-2xl border border-white/10 p-5 col-span-2 lg:col-span-1 card-hover">
           <div className="text-xs text-textMuted mb-2">Capital actual</div>
@@ -75,6 +77,15 @@ const Dashboard: React.FC = () => {
               {isPositive ? '+' : ''}{pctChange}%
             </div>
           )}
+        </div>
+
+        {/* Withdrawals */}
+        <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
+          <div className="text-xs text-textMuted mb-2 flex items-center gap-1">
+            <BadgeDollarSign className="w-3.5 h-3.5 text-primary" /> Retiros (Mes)
+          </div>
+          <div className="text-2xl font-bold text-primary font-mono">{fmt(stats.monthlyWithdrawals || 0)}</div>
+          <div className="text-xs text-textMuted mt-1 font-mono">Total histórico: {fmt(stats.totalWithdrawals || 0)}</div>
         </div>
 
         {/* Trades */}

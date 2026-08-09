@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, ALL_ACCOUNTS_ID } from '../../contexts/AccountContext';
-import { useWithdrawals, Withdrawal, WithdrawalMethod, WithdrawalStatus } from '../../hooks/useWithdrawals';
+import { useWithdrawals } from '../../hooks/useWithdrawals';
+import type { Withdrawal, WithdrawalMethod, WithdrawalStatus } from '../../hooks/useWithdrawals';
 import { supabase } from '../../lib/supabase';
 import { Plus, Edit2, Trash2, X, AlertCircle, ArrowDownToLine, TrendingUp, PiggyBank, Calendar, PieChart } from 'lucide-react';
 

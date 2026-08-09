@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useAccounts, ALL_ACCOUNTS_ID, TradingAccount } from '../contexts/AccountContext';
+import { useAccounts, ALL_ACCOUNTS_ID } from '../contexts/AccountContext';
+import type { TradingAccount } from '../contexts/AccountContext';
 
 export type WithdrawalMethod = 'billetera_virtual' | 'transferencia_bancaria' | 'cripto' | 'otro';
 export type WithdrawalStatus = 'pendiente' | 'procesado' | 'rechazado';

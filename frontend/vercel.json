@@ -1,8 +1,15 @@
 {
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/login", "destination": "/app.html" },
+    { "source": "/signup", "destination": "/app.html" },
+    { "source": "/pending", "destination": "/app.html" },
+    { "source": "/dashboard", "destination": "/app.html" },
+    { "source": "/accounts", "destination": "/app.html" },
+    { "source": "/trades", "destination": "/app.html" },
+    { "source": "/strategies", "destination": "/app.html" },
+    { "source": "/funding", "destination": "/app.html" },
+    { "source": "/stats", "destination": "/app.html" },
+    { "source": "/calendar", "destination": "/app.html" },
+    { "source": "/admin", "destination": "/app.html" }
   ]
 }

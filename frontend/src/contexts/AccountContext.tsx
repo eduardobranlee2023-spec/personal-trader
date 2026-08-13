@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 
 export type AccountStatus = 'activa' | 'pausada' | 'quemada' | 'pasada';
 export type AccountType = 'personal' | 'fondeada';
+export type FundedPhase = 'fase_1' | 'fase_2' | 'verificada' | null;
 
 export type TradingAccount = {
   id: string;
@@ -14,6 +15,7 @@ export type TradingAccount = {
   currency: string;
   initial_balance: number | null;
   status: AccountStatus;
+  funded_phase: FundedPhase;
   created_at: string;
   // computed
   current_balance?: number;

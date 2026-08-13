@@ -9,6 +9,8 @@ import { useTrades, useStrategies } from '../hooks/useTrades';
 import type { Period } from '../hooks/useStats';
 import { useStats } from '../hooks/useStats';
 import { useAccounts, ALL_ACCOUNTS_ID } from '../contexts/AccountContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAccountCosts } from '../hooks/useAccountCosts';
 import type { Trade } from '../hooks/useTrades';
 import {
   TrendingUp, TrendingDown, Flame, AlertTriangle,
@@ -25,37 +27,37 @@ const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 const PERIODS: Period[] = ['1W', '1M', '3M', '1Y', 'ALL'];
 const PERIOD_LABELS: Record<Period, string> = { '1W': '1 Sem', '1M': '1 Mes', '3M': '3 Meses', '1Y': '1 Año', 'ALL': 'Todo' };
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+const COLORS = ['var(--blu)', 'var(--acc)', 'var(--amb)', 'var(--red)', '#8B5CF6', '#EC4899', '#06B6D4'];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const StatCard: React.FC<{ label: string; value: string; sub?: string; color?: string; icon?: React.ReactNode }> = ({
-  label, value, sub, color = 'text-text', icon
+const StatCard: React.FC<{ label: string; value: string; sub?: string; accent?: boolean; negative?: boolean; icon?: React.ReactNode }> = ({
+  label, value, sub, accent, negative, icon
 }) => (
-  <div className="glass rounded-2xl border border-white/10 p-5">
-    {icon && <div className="mb-3 opacity-60">{icon}</div>}
-    <div className="text-xs text-textMuted mb-1">{label}</div>
-    <div className={`text-2xl font-bold ${color}`}>{value}</div>
-    {sub && <div className="text-xs text-textMuted mt-1">{sub}</div>}
+  <div className="stat-card">
+    {icon && <div className="sc-top">{icon}</div>}
+    <div className="sc-lbl">{label}</div>
+    <div className={`sc-val ${accent ? 'accent' : negative ? 'negative' : ''}`}>{value}</div>
+    {sub && <div className="sc-sub">{sub}</div>}
   </div>
 );
 
 const TradeChip: React.FC<{ label: string; trade: Trade | null }> = ({ label, trade }) => {
   if (!trade) return (
-    <div className="glass rounded-2xl border border-white/10 p-5">
-      <div className="text-xs text-textMuted mb-2">{label}</div>
-      <div className="text-textMuted text-sm">Sin datos</div>
+    <div className="stat-card">
+      <div className="sc-lbl mb-2">{label}</div>
+      <div className="sc-sub">Sin datos</div>
     </div>
   );
   const pos = (trade.result_amount ?? 0) > 0;
   return (
-    <div className={`glass rounded-2xl border p-5 ${pos ? 'border-accent/20' : 'border-red-400/20'}`}>
-      <div className="text-xs text-textMuted mb-2">{label}</div>
-      <div className="font-bold text-text text-base">{trade.asset}</div>
-      <div className={`text-lg font-bold mt-1 ${pos ? 'text-accent' : 'text-red-400'}`}>
+    <div className="stat-card">
+      <div className="sc-lbl mb-2">{label}</div>
+      <div className="fund-name">{trade.asset}</div>
+      <div className={`sc-val ${pos ? 'accent' : 'negative'} mt-1`}>
         {pos ? '+' : ''}{fmtUSD(trade.result_amount ?? 0)}
       </div>
-      <div className="text-xs text-textMuted mt-1">
+      <div className="sc-sub">
         {trade.direction} · {trade.timeframe} · {trade.session} · {trade.trade_date}
       </div>
     </div>
@@ -71,24 +73,24 @@ const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> 
     { name: 'Actual', pnl: current },
   ];
   return (
-    <div className="glass rounded-2xl border border-white/10 p-5">
-      <div className="text-xs text-textMuted mb-1">{label}</div>
-      <div className={`text-xl font-bold ${isPos ? 'text-accent' : 'text-red-400'} flex items-center gap-2`}>
+    <div className="stat-card">
+      <div className="sc-lbl mb-1">{label}</div>
+      <div className={`sc-val ${isPos ? 'accent' : 'negative'} flex items-center gap-2`}>
         {isPos ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
         {fmtUSD(current)}
-        {pct && <span className="text-sm font-medium">({isPos ? '+' : ''}{pct}% vs anterior)</span>}
+        {pct && <span className="sc-sub">({isPos ? '+' : ''}{pct}% vs anterior)</span>}
       </div>
       <div className="mt-3 h-24">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={32}>
             <YAxis hide domain={['auto', 'auto']} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-              formatter={(v: any) => [fmtUSD(Number(v ?? 0)), 'P&L']}
+              contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }}
+              formatter={(v) => [fmtUSD(Number(v ?? 0)), 'P&L']}
             />
             <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
               {data.map((entry, i) => (
-                <Cell key={i} fill={entry.pnl >= 0 ? '#10B981' : '#EF4444'} />
+                <Cell key={i} fill={entry.pnl >= 0 ? 'var(--acc)' : 'var(--red)'} />
               ))}
             </Bar>
           </BarChart>
@@ -100,27 +102,28 @@ const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> 
 
 const DistChart: React.FC<{ title: string; data: { name: string; trades: number; winRate: number; pnl: number }[] }> = ({ title, data }) => {
   if (data.length === 0) return (
-    <div className="glass rounded-2xl border border-white/10 p-5">
-      <div className="text-sm font-semibold text-text mb-4">{title}</div>
-      <div className="text-textMuted text-xs py-4 text-center">Sin datos</div>
+    <div className="chart-box p-5">
+      <div className="chart-head"><span className="ch-t"><b>{title}</b></span></div>
+      <div className="sc-sub py-4 text-center">Sin datos</div>
     </div>
   );
   return (
-    <div className="glass rounded-2xl border border-white/10 p-5">
-      <div className="text-sm font-semibold text-text mb-4">{title}</div>
+    <div className="chart-box">
+      <div className="chart-head"><span className="ch-t"><b>{title}</b></span></div>
+      <div className="p-5">
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 32 }}>
             <XAxis type="number" hide />
-            <YAxis type="category" dataKey="name" width={80} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+            <YAxis type="category" dataKey="name" width={80} tick={{ fill: 'var(--mut2)', fontSize: 11 }} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
+              contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }}
               formatter={(v: any, name: any) => [
                 name === 'trades' ? `${v} ops` : name === 'winRate' ? `${v}%` : fmtUSD(Number(v ?? 0)),
                 name === 'trades' ? 'Operaciones' : name === 'winRate' ? 'Win Rate' : 'P&L'
               ]}
             />
-            <Bar dataKey="trades" fill="#3B82F6" radius={[0, 4, 4, 0]}>
+            <Bar dataKey="trades" fill="var(--acc)" radius={[0, 4, 4, 0]}>
               {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Bar>
           </BarChart>
@@ -135,11 +138,12 @@ const DistChart: React.FC<{ title: string; data: { name: string; trades: number;
               <span className="text-textMuted truncate max-w-[100px]">{d.name}</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className={d.winRate >= 50 ? 'text-accent' : 'text-red-400'}>{d.winRate}% WR</span>
-              <span className={d.pnl >= 0 ? 'text-accent' : 'text-red-400'}>{fmtUSD(d.pnl)}</span>
+              <span className={d.winRate >= 50 ? 'text-acc' : 'text-loss'}>{d.winRate}% WR</span>
+              <span className={d.pnl >= 0 ? 'text-acc' : 'text-loss'}>{fmtUSD(d.pnl)}</span>
             </div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
@@ -152,11 +156,11 @@ const BalanceTooltip: React.FC<any> = ({ active, payload, label }) => {
   const bal = payload[0]?.value;
   const pnl = payload[1]?.value;
   return (
-    <div className="glass rounded-xl border border-white/10 p-3 text-xs">
-      <div className="text-textMuted mb-1">{label}</div>
-      <div className="font-bold text-text">{fmtUSD(bal)}</div>
+    <div className="panel-card rounded-xl p-3 text-xs">
+      <div className="sc-sub mb-1">{label}</div>
+      <div className="sc-val">{fmtUSD(bal)}</div>
       {pnl != null && (
-        <div className={`mt-0.5 ${pnl >= 0 ? 'text-accent' : 'text-red-400'}`}>
+        <div className={`sc-sub ${pnl >= 0 ? 'text-acc' : 'text-loss'}`}>
           {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)} ese día
         </div>
       )}
@@ -168,6 +172,7 @@ const BalanceTooltip: React.FC<any> = ({ active, payload, label }) => {
 
 const StatsPage: React.FC = () => {
   const { accounts, selectedAccountId } = useAccounts();
+  const { costByAccount } = useAccountCosts();
   const [period, setPeriod] = useState<Period>('1M');
   const [strategyFilter, setStrategyFilter] = useState('');
 
@@ -177,6 +182,8 @@ const StatsPage: React.FC = () => {
   });
   const { strategies } = useStrategies();
 
+  const { preferences } = useTheme();
+  const accent = preferences.accent_color;
   const stats = useStats(trades, accounts, selectedAccountId, period, ALL_ACCOUNTS_ID);
   const isAll = selectedAccountId === ALL_ACCOUNTS_ID;
   const isPos = stats.totalPnl >= 0;
@@ -194,33 +201,28 @@ const StatsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-text flex items-center gap-2.5">
+          <h1 className="page-title flex items-center gap-2.5">
             <BarChart2 className="w-6 h-6 text-primary" /> Estadísticas
           </h1>
-          <p className="text-textMuted text-sm mt-2 flex items-center gap-3">
+          <p className="page-sub mt-2 flex items-center gap-3">
             {stats.periodTrades.length} operaciones en el período seleccionado
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${
-              isPos ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
-            }`}>
+            <span className={`tag ${isPos ? 'tag-win' : 'tag-loss'}`}>
               {isPos ? 'RENTABLE' : 'NO RENTABLE'}
             </span>
           </p>
         </div>
 
-        {/* Period Selector */}
-        <div className="flex items-center glass rounded-xl border border-white/10 p-1 gap-0.5">
+        <div className="seg">
           {PERIODS.map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p ? 'bg-primary text-white' : 'text-textMuted hover:text-text'}`}
+            <button key={p} type="button" onClick={() => setPeriod(p)}
+              className={period === p ? 'on-acc' : ''}
             >
               {PERIOD_LABELS[p]}
             </button>
           ))}
         </div>
-        {/* Strategy Selector */}
-        <div className="flex items-center glass rounded-xl border border-white/10 p-1 gap-0.5 ml-2">
-          <select value={strategyFilter} onChange={e => setStrategyFilter(e.target.value)}
-            className="bg-white/5 border border-white/10 text-text rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/60">
+        <div className="field">
+          <select value={strategyFilter} onChange={e => setStrategyFilter(e.target.value)} className="input">
             <option value="">Todas las estrategias</option>
             {strategies.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -230,26 +232,28 @@ const StatsPage: React.FC = () => {
       </div>
 
       {stats.periodTrades.length === 0 ? (
-        <div className="glass rounded-2xl border border-white/10 border-dashed flex flex-col items-center justify-center py-24 gap-3 text-textMuted">
+        <div className="panel-card border-dashed flex flex-col items-center justify-center py-24 gap-3 text-textMuted">
           <BarChart2 className="w-10 h-10 opacity-30" />
           <p className="text-sm">Sin operaciones en este período. Probá con un rango más amplio.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* ── Row 1: Key metrics ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="stat-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               label="P&L del período"
               value={`${isPos ? '+' : ''}${fmtUSD(stats.totalPnl)}`}
               sub={`${fmtPct(stats.totalPnlPct)} del capital`}
-              color={isPos ? 'text-accent' : 'text-red-400'}
-              icon={isPos ? <TrendingUp className="w-5 h-5 text-accent" /> : <TrendingDown className="w-5 h-5 text-red-400" />}
+              accent={isPos}
+              negative={!isPos}
+              icon={isPos ? <TrendingUp className="w-5 h-5 text-acc" /> : <TrendingDown className="w-5 h-5 text-loss" />}
             />
             <StatCard
               label="Win Rate"
               value={`${stats.winRate}%`}
               sub={`${stats.totalWins}G · ${stats.totalLosses}P · ${stats.totalBreakeven}BE`}
-              color={stats.winRate >= 50 ? 'text-accent' : 'text-red-400'}
+              accent={stats.winRate >= 50}
+              negative={stats.winRate < 50}
               icon={<Target className="w-5 h-5" />}
             />
             <StatCard
@@ -258,54 +262,48 @@ const StatsPage: React.FC = () => {
               sub={stats.avgRRWins ? `Ganadas: 1:${stats.avgRRWins.toFixed(2)}` : undefined}
               icon={<Zap className="w-5 h-5" />}
             />
-            <div className={`glass rounded-2xl border p-5 ${
-              stats.currentStreak.type === 'ganando' ? 'border-accent/20' :
-              stats.currentStreak.type === 'perdiendo' ? 'border-red-400/20' : 'border-white/10'
-            }`}>
-              <div className="mb-3 opacity-60">
+            <div className="stat-card">
+              <div className="sc-top">
                 {stats.currentStreak.type === 'ganando'
-                  ? <Flame className="w-5 h-5 text-accent" />
+                  ? <Flame className="w-5 h-5 text-acc" />
                   : stats.currentStreak.type === 'perdiendo'
-                  ? <AlertTriangle className="w-5 h-5 text-red-400" />
+                  ? <AlertTriangle className="w-5 h-5 text-loss" />
                   : <Zap className="w-5 h-5" />}
               </div>
-              <div className="text-xs text-textMuted mb-1">Racha actual</div>
-              <div className={`text-2xl font-bold ${
-                stats.currentStreak.type === 'ganando' ? 'text-accent' :
-                stats.currentStreak.type === 'perdiendo' ? 'text-red-400' : 'text-text'
+              <div className="sc-lbl">Racha actual</div>
+              <div className={`sc-val ${
+                stats.currentStreak.type === 'ganando' ? 'accent' :
+                stats.currentStreak.type === 'perdiendo' ? 'negative' : ''
               }`}>
                 {stats.currentStreak.count > 0 ? `${stats.currentStreak.count} ${stats.currentStreak.type}` : '—'}
               </div>
-              <div className="text-xs text-textMuted mt-1 capitalize">{stats.currentStreak.type}</div>
+              <div className="sc-sub capitalize">{stats.currentStreak.type}</div>
             </div>
           </div>
 
-          {/* ── Balance Evolution Chart ────────────────────────────────────── */}
-          <div className="glass rounded-2xl border border-white/10 p-5">
-            <div className="text-sm font-semibold text-text mb-4">Evolución del Balance</div>
-            <div className="h-64">
+          <div className="chart-box">
+            <div className="chart-head"><span className="ch-t"><b>Evolución del Balance</b></span></div>
+            <div className="p-5 h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.balancePoints} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <defs>
                     <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                      <stop offset="5%" stopColor={accent} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={accent} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} tickLine={false} axisLine={false}
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--mut2)', fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: 'var(--mut2)', fontSize: 11 }} tickLine={false} axisLine={false}
                     tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                   <Tooltip content={<BalanceTooltip />} />
-                  <Area type="monotone" dataKey="balance" stroke="#3B82F6" strokeWidth={2}
-                    fill="url(#balGrad)" dot={false} activeDot={{ r: 4, fill: '#3B82F6' }} />
+                  <Area type="monotone" dataKey="balance" stroke={accent} strokeWidth={2}
+                    fill="url(#balGrad)" dot={false} activeDot={{ r: 4, fill: accent }} />
                   <Area type="monotone" dataKey="pnl" stroke="transparent" fill="transparent" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
-
-          {/* ── Best / Worst + Comparisons ─────────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <TradeChip label="🏆 Mejor operativa" trade={stats.bestTrade} />
             <TradeChip label="💔 Peor operativa" trade={stats.worstTrade} />
@@ -329,36 +327,59 @@ const StatsPage: React.FC = () => {
           {isAll && stats.accountBreakdown.some(a => a.tradeCount > 0) && (
             <div>
               <h2 className="text-sm font-semibold text-textMuted uppercase mb-4">Comparativo por Cuenta</h2>
-              <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-                <table className="w-full text-left">
+              <div className="ptable-wrap">
+                <table className="ptable">
                   <thead>
-                    <tr className="border-b border-white/10 text-xs text-textMuted bg-white/2">
-                      <th className="p-4 font-medium">Cuenta</th>
-                      <th className="p-4 font-medium">Broker</th>
-                      <th className="p-4 font-medium">Trades</th>
-                      <th className="p-4 font-medium">P&L</th>
-                      <th className="p-4 font-medium">Win Rate</th>
-                      <th className="p-4 font-medium">RR Prom.</th>
+                    <tr>
+                      <th>Cuenta</th>
+                      <th>Broker</th>
+                      <th>Trades</th>
+                      <th>Win Rate</th>
+                      <th>RR Prom.</th>
+                      <th style={{ textAlign: 'right' }}>Costo</th>
+                      <th style={{ textAlign: 'right' }}>Ganancia</th>
+                      <th style={{ textAlign: 'right' }}>% Recuperado</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody>
                     {stats.accountBreakdown
                       .filter(a => a.tradeCount > 0)
                       .sort((a, b) => b.pnl - a.pnl)
-                      .map(({ account, pnl, winRate, avgRR, tradeCount }) => (
-                        <tr key={account.id} className="hover:bg-white/3 transition text-sm">
-                          <td className="p-4 font-medium text-text">{account.name}</td>
-                          <td className="p-4 text-textMuted">{account.broker_or_prop_firm || '—'}</td>
-                          <td className="p-4 text-text">{tradeCount}</td>
-                          <td className={`p-4 font-semibold ${pnl >= 0 ? 'text-accent' : 'text-red-400'}`}>
-                            {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)}
-                          </td>
-                          <td className={`p-4 font-semibold ${winRate >= 50 ? 'text-accent' : 'text-red-400'}`}>
-                            {winRate}%
-                          </td>
-                          <td className="p-4 text-text">{avgRR ? `1:${avgRR.toFixed(2)}` : '—'}</td>
-                        </tr>
-                      ))}
+                      .map(({ account, pnl, winRate, avgRR, tradeCount }) => {
+                        const isFunded = account.account_type === 'fondeada';
+                        const costData = costByAccount.get(account.id);
+                        const cost = costData?.totalCost ?? 0;
+                        const hasCost = isFunded && cost > 0;
+                        const recoveredPct = hasCost ? (pnl / cost) * 100 : null;
+                        const isPaid = recoveredPct !== null && recoveredPct >= 100;
+                        
+                        return (
+                          <tr key={account.id}>
+                            <td className="sym">{account.name}</td>
+                            <td>{account.broker_or_prop_firm || '—'}</td>
+                            <td>{tradeCount}</td>
+                            <td className={winRate >= 50 ? 'pos' : 'neg'}>
+                              {winRate}%
+                            </td>
+                            <td>{avgRR ? `1:${avgRR.toFixed(2)}` : '—'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              {hasCost ? fmtUSD(cost) : '—'}
+                            </td>
+                            <td className={`${pnl >= 0 ? 'pos' : 'neg'}`} style={{ textAlign: 'right' }}>
+                              {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {recoveredPct !== null ? (
+                                <span className={`tag ${isPaid ? 'tag-win' : 'tag-warn'}`}>
+                                  {isPaid ? 'Pagada' : `${recoveredPct.toFixed(1)}%`}
+                                </span>
+                              ) : (
+                                <span className="text-textMuted">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>

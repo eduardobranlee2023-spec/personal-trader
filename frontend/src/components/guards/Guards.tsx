@@ -8,7 +8,7 @@ export const AuthGuard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="spinner" />
       </div>
     );
   }
@@ -17,17 +17,14 @@ export const AuthGuard: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Admin bypasses all subscription/access checks
   if (profile?.role === 'admin') {
     return <Outlet />;
   }
 
-  // Block pending access
   if (profile?.access_status === 'pendiente') {
     return <Navigate to="/pending" replace />;
   }
 
-  // Block expired or inactive subscription
   const blockedStatuses = ['inactive', 'expired'];
   if (profile?.subscription_status && blockedStatuses.includes(profile.subscription_status)) {
     return <Navigate to="/pending" replace />;
@@ -42,7 +39,7 @@ export const AdminGuard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="spinner" />
       </div>
     );
   }

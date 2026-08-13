@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { AccountProvider } from './contexts/AccountContext';
 import { AuthGuard, AdminGuard } from './components/guards/Guards';
 import Login from './pages/Login';
@@ -19,7 +20,8 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AccountProvider>
+        <ThemeProvider>
+          <AccountProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -43,11 +45,11 @@ const App: React.FC = () => {
               <Route path="/admin" element={<AdminPanel />} />
             </Route>
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Default redirect (solo rutas de la app — / es la landing estática) */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
-        </AccountProvider>
+          </AccountProvider>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

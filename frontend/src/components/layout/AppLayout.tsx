@@ -3,12 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, ALL_ACCOUNTS_ID } from '../../contexts/AccountContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import type { TradingAccount } from '../../contexts/AccountContext';
+import type { TradingAccount, FundedPhase } from '../../contexts/AccountContext';
 import {
-  TrendingUp, LogOut, ChevronDown, Wallet,
+  LogOut, ChevronDown, Wallet,
   LayoutDashboard, BarChart2, CalendarDays, Shield, PieChart, BookOpen, BadgeDollarSign,
-  Sun, Moon, Menu, X
+  Sun, Moon, Settings
 } from 'lucide-react';
+import ThemePanel from '../theme/ThemePanel';
+import BrandMark from '../brand/BrandMark';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,14 +22,19 @@ const navItems = [
   { path: '/calendar', label: 'Calendario', icon: CalendarDays },
 ];
 
+const phaseTag: Record<NonNullable<FundedPhase>, string> = {
+  fase_1: 'tag tag-warn',
+  fase_2: 'tag tag-info',
+  verificada: 'tag tag-win',
+};
+
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, signOut } = useAuth();
   const { accounts, selectedAccountId, setSelectedAccountId, isLoading: accountsLoading } = useAccounts();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, openPanel } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,9 +46,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  // Close mobile menu on navigation
-  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -55,29 +59,21 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Navbar */}
-      <nav className="border-b border-white/10 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
+      <nav className="shell-topbar">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-
-          {/* Logo */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="flex items-center justify-center w-8 h-8 bg-primary/20 border border-primary/30 rounded-lg">
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold text-text text-sm hidden sm:block tracking-tight">Personal Trader</span>
+            <BrandMark size={32} />
+            <span className="font-bold text-text text-sm hidden sm:block tracking-tight uppercase">
+              Personal <span className="text-primary">Trader</span>
+            </span>
           </div>
 
-          {/* Nav links — desktop only */}
           <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center">
             {navItems.map(({ path, label, icon: Icon }) => (
               <button
                 key={path}
                 onClick={() => navigate(path)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  location.pathname === path
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-textMuted hover:text-text hover:bg-white/5'
-                }`}
+                className={`nav-link ${location.pathname === path ? 'on' : ''}`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 {label}
@@ -85,14 +81,12 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             ))}
           </div>
 
-          {/* Right side */}
           <div className="flex items-center gap-1.5">
-            {/* Account selector */}
             <div className="relative" ref={dropdownRef}>
               <button
                 id="account-selector"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-text text-xs px-2.5 py-2 rounded-lg transition-all max-w-[140px] sm:max-w-[180px]"
+                className="btn btn-ghost btn-sm max-w-[140px] sm:max-w-[180px]"
               >
                 <Wallet className="w-3 h-3 text-primary shrink-0" />
                 <span className="truncate hidden sm:block">{accountsLoading ? '...' : selectedLabel}</span>
@@ -100,7 +94,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-56 glass rounded-xl border border-white/10 shadow-2xl z-50 overflow-hidden">
+                <div className="absolute right-0 top-full mt-1.5 w-56 panel-card shadow-2xl z-50 overflow-hidden p-0">
                   <button
                     id="account-option-all"
                     onClick={() => { setSelectedAccountId(ALL_ACCOUNTS_ID); setDropdownOpen(false); }}
@@ -108,7 +102,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       selectedAccountId === ALL_ACCOUNTS_ID ? 'text-primary' : 'text-text'
                     }`}
                   >
-                    <div className="w-2 h-2 rounded-full bg-primary/60 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
                     <span className="font-medium">Todas las cuentas</span>
                   </button>
                   {accounts.length === 0 ? (
@@ -124,13 +118,19 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         }`}
                       >
                         <div className={`w-2 h-2 rounded-full shrink-0 ${
-                          acc.status === 'activa' ? 'bg-accent' :
-                          acc.status === 'pausada' ? 'bg-yellow-400' :
-                          acc.status === 'quemada' ? 'bg-red-400' : 'bg-blue-400'
+                          acc.status === 'activa' ? 'bg-primary' :
+                          acc.status === 'pausada' ? 'bg-[var(--amb)]' :
+                          acc.status === 'quemada' ? 'bg-[var(--red)]' : 'bg-[var(--blu)]'
                         }`} />
                         <div className="min-w-0">
                           <div className="truncate font-medium">{acc.name}</div>
-                          <div className="text-xs text-textMuted truncate">{acc.broker_or_prop_firm || acc.account_type}</div>
+                          <div className="flex items-center gap-1.5 text-xs text-textMuted truncate mt-0.5">
+                            {acc.account_type === 'fondeada' && acc.funded_phase ? (
+                              <span className={phaseTag[acc.funded_phase]}>{acc.funded_phase.replace('_', ' ')}</span>
+                            ) : (
+                              <span>{acc.broker_or_prop_firm || acc.account_type}</span>
+                            )}
+                          </div>
                         </div>
                       </button>
                     ))
@@ -145,61 +145,58 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               )}
             </div>
 
-            {/* Theme toggle */}
+            <button
+              onClick={openPanel}
+              title="Personalizar tema"
+              className="btn-icon"
+              style={{ width: 34, height: 34 }}
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-              className="flex items-center justify-center w-8 h-8 text-textMuted hover:text-text transition rounded-lg hover:bg-white/5"
+              className="btn-icon"
+              style={{ width: 34, height: 34 }}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Admin */}
             {profile?.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}
                 title="Panel Admin"
-                className="flex items-center justify-center w-8 h-8 text-textMuted hover:text-accent transition rounded-lg hover:bg-white/5"
+                className="btn-icon"
+                style={{ width: 34, height: 34 }}
               >
                 <Shield className="w-4 h-4" />
               </button>
             )}
 
-            {/* Avatar */}
-            <div className="w-7 h-7 bg-primary/20 border border-primary/30 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
+            <div className="avatar shrink-0">
               {profile?.full_name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || '?'}
             </div>
 
-            {/* Sign out */}
             <button
               id="nav-signout"
               onClick={handleSignOut}
-              className="text-textMuted hover:text-red-400 transition p-1.5 hidden sm:block"
+              className="btn-icon hidden sm:grid"
+              style={{ width: 34, height: 34 }}
               title="Cerrar sesión"
             >
               <LogOut className="w-4 h-4" />
             </button>
-
-            {/* Hamburger mobile */}
-            <button
-              className="lg:hidden flex items-center justify-center w-8 h-8 text-textMuted hover:text-text transition rounded-lg hover:bg-white/5"
-              onClick={() => setMobileMenuOpen(o => !o)}
-            >
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
           </div>
         </div>
 
-        {/* Mobile bottom tabs */}
         <div className="lg:hidden border-t border-white/5 flex overflow-x-auto scrollbar-hide px-1 pb-1 pt-1 gap-0.5">
           {navItems.map(({ path, label, icon: Icon }) => (
             <button
               key={path}
               onClick={() => navigate(path)}
               className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-[10px] shrink-0 transition-all font-medium ${
-                location.pathname === path
-                  ? 'text-primary bg-primary/10'
-                  : 'text-textMuted'
+                location.pathname === path ? 'text-primary bg-primary/10' : 'text-textMuted'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -208,7 +205,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ))}
           <button
             onClick={handleSignOut}
-            className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-[10px] shrink-0 text-textMuted hover:text-red-400 transition"
+            className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-[10px] shrink-0 text-textMuted hover:text-loss transition"
           >
             <LogOut className="w-4 h-4" />
             <span>Salir</span>
@@ -216,10 +213,11 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </nav>
 
-      {/* Page content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 sm:py-8">
         {children}
       </main>
+      <ThemePanel />
+      <div className="noise" aria-hidden="true" />
     </div>
   );
 };

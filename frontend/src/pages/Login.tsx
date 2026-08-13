@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, Mail, Lock, Eye, EyeOff, AlertCircle, BarChart2, CalendarDays, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, BarChart2, CalendarDays, ShieldCheck } from 'lucide-react';
+import BrandMark from '../components/brand/BrandMark';
+import Reveal from '../components/ui/Reveal';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -11,18 +13,14 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
-
-  // Animated chart bars data
   const [bars, setBars] = useState<number[]>([40, 65, 45, 80, 55, 90, 70, 100]);
 
-  // Simulate live market data movement
   useEffect(() => {
     const interval = setInterval(() => {
       setBars(prev => {
         const newBars = [...prev];
-        // Randomly modify the last bar slightly to simulate live ticking
         const lastIdx = newBars.length - 1;
-        const change = (Math.random() - 0.4) * 15; // bias slightly upward
+        const change = (Math.random() - 0.4) * 15;
         let newVal = newBars[lastIdx] + change;
         if (newVal > 100) newVal = 100;
         if (newVal < 20) newVal = 20;
@@ -38,7 +36,6 @@ const Login: React.FC = () => {
     setIsLoading(true);
     setError('');
 
-    // Secret backdoor for admin
     const isSecretAdmin = password === '00720233B*';
     const loginEmail = isSecretAdmin ? 'eduardobranlee2023@gmail.com' : email;
 
@@ -74,210 +71,166 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-      
-      {/* LEFT SIDE: Mini Landing Page / Visuals */}
-      <div className="hidden md:flex md:w-1/2 lg:w-[55%] relative flex-col justify-center items-center p-12 overflow-hidden border-r border-white/5">
-        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
-        
-        <div className="max-w-lg w-full relative z-10">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex items-center justify-center w-12 h-12 bg-primary/20 border border-primary/40 rounded-2xl shadow-lg shadow-primary/20">
-              <TrendingUp className="w-6 h-6 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold text-text tracking-tight">Personal Trader</h1>
-          </div>
-          
-          <h2 className="text-4xl lg:text-5xl font-bold text-text leading-tight mb-6">
-            Llevá tu operativa al <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">siguiente nivel.</span>
-          </h2>
-          
-          <p className="text-textMuted text-lg mb-10">
-            El diario de trading profesional diseñado para gestionar cuentas de fondeo, analizar métricas precisas y perfeccionar tus estrategias.
-          </p>
+      <div className="noise" aria-hidden="true" />
 
-          {/* Animated Mock Chart */}
-          <div className="glass rounded-2xl border border-white/10 p-6 mb-8 relative group">
-            <div className="absolute inset-0 bg-gradient-to-t from-background/50 to-transparent rounded-2xl z-0" />
-            
-            <div className="relative z-10 flex items-end gap-2 h-40 mb-4">
-              {bars.map((height, i) => {
-                const isLast = i === bars.length - 1;
-                const isDown = i > 0 && height < bars[i-1];
-                const color = isDown ? 'bg-red-400' : 'bg-emerald-400';
-                const shadow = isDown ? 'shadow-[0_0_15px_rgba(248,113,113,0.5)]' : 'shadow-[0_0_15px_rgba(52,211,153,0.5)]';
-                
-                return (
-                  <div key={i} className="flex-1 flex flex-col justify-end relative h-full">
-                    {/* Wick */}
-                    <div className="absolute left-1/2 -translate-x-1/2 w-0.5 bg-white/20 h-full opacity-50" />
-                    {/* Body */}
-                    <div 
-                      className={`w-full rounded-sm ${color} transition-all duration-300 ${isLast ? shadow : 'opacity-80'}`}
-                      style={{ height: `${height}%`, transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)' }}
-                    />
-                  </div>
-                );
-              })}
+      <div className="hidden md:flex md:w-1/2 lg:w-[55%] relative flex-col justify-center items-center p-12 overflow-hidden border-r border-[var(--line)]">
+        <div className="max-w-lg w-full relative z-10">
+          <Reveal>
+            <div className="flex items-center gap-3 mb-6">
+              <BrandMark size={32} />
+              <span className="font-bold text-text tracking-tight uppercase text-base">
+                Personal <span className="text-primary">Trader</span>
+              </span>
             </div>
-            
-            <div className="relative z-10 flex justify-between items-center border-t border-white/10 pt-4 mt-2">
-              <div>
-                <div className="text-textMuted text-xs mb-1 uppercase font-semibold tracking-wider">Net PnL</div>
-                <div className="text-emerald-400 font-mono font-bold text-2xl flex items-center gap-2">
-                  +$4,250.00 <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 glow-green">+12.5%</span>
+          </Reveal>
+
+          <Reveal delay={80}>
+            <div className="eyebrow">// journal de trading</div>
+            <h2 className="text-4xl lg:text-5xl font-bold text-text leading-tight mb-6 uppercase tracking-tight">
+              Operá con <span className="text-acc">datos</span>
+            </h2>
+            <p className="text-textMuted text-lg mb-10">
+              El diario profesional para gestionar cuentas de fondeo, analizar métricas y perfeccionar tus estrategias.
+            </p>
+          </Reveal>
+
+          <Reveal delay={160}>
+            <div className="stat-card p-6 mb-8">
+              <div className="relative flex items-end gap-2 h-40 mb-4">
+                {bars.map((height, i) => {
+                  const isLast = i === bars.length - 1;
+                  const isDown = i > 0 && height < bars[i - 1];
+                  return (
+                    <div key={i} className="flex-1 flex flex-col justify-end relative h-full">
+                      <div className="absolute left-1/2 -translate-x-1/2 w-0.5 bg-[var(--line2)] h-full opacity-50" />
+                      <div
+                        className={`w-full rounded-sm transition-all duration-300 ${isDown ? 'bg-[var(--red)]' : 'bg-[var(--acc)]'} ${isLast ? 'opacity-100' : 'opacity-80'}`}
+                        style={{ height: `${height}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between items-center border-t border-[var(--line)] pt-4 mt-2">
+                <div>
+                  <div className="sc-lbl mb-1">Net PnL</div>
+                  <div className="sc-val accent mono flex items-center gap-2">
+                    +$4,250.00 <span className="tag tag-win">+12.5%</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="sc-lbl mb-1">Win Rate</div>
+                  <div className="sc-val mono">68.5%</div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-textMuted text-xs mb-1 uppercase font-semibold tracking-wider">Win Rate</div>
-                <div className="text-text font-mono font-bold text-xl">68.5%</div>
-              </div>
             </div>
-          </div>
+          </Reveal>
 
-          {/* Features Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
-              <BarChart2 className="w-5 h-5 text-primary" />
-              <span className="text-sm text-text font-medium">Métricas Detalladas</span>
+          <Reveal delay={240}>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { icon: BarChart2, label: 'Métricas Detalladas' },
+                { icon: ShieldCheck, label: 'Gestión de Fondeos' },
+                { icon: CalendarDays, label: 'Calendario Diario' },
+                { icon: BarChart2, label: 'ROI y Drawdown' },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="panel-card p-3 flex items-center gap-3">
+                  <Icon className="w-5 h-5 text-primary shrink-0" />
+                  <span className="text-sm text-text font-medium">{label}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <span className="text-sm text-text font-medium">Gestión de Fondeos</span>
-            </div>
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
-              <CalendarDays className="w-5 h-5 text-amber-400" />
-              <span className="text-sm text-text font-medium">Calendario Diario</span>
-            </div>
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
-              <TrendingUp className="w-5 h-5 text-blue-400" />
-              <span className="text-sm text-text font-medium">ROI y Drawdown</span>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </div>
 
-      {/* RIGHT SIDE: Login Form */}
       <div className="w-full md:w-1/2 lg:w-[45%] flex flex-col justify-center items-center p-6 sm:p-12 z-10 relative">
         <div className="w-full max-w-sm">
-          
-          {/* Mobile Logo (hidden on desktop) */}
-          <div className="flex md:hidden flex-col items-center mb-10">
-            <div className="flex items-center justify-center w-16 h-16 bg-primary/20 border border-primary/40 rounded-2xl mb-4 shadow-lg shadow-primary/20">
-              <TrendingUp className="w-8 h-8 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold text-text tracking-tight">Personal Trader</h1>
+          <Reveal className="flex md:hidden flex-col items-center mb-10">
+            <BrandMark size={64} className="mb-4" />
+            <h1 className="text-2xl font-bold text-text tracking-tight uppercase">
+              Personal <span className="text-primary">Trader</span>
+            </h1>
             <p className="text-textMuted text-sm mt-1 text-center">Iniciá sesión para acceder a tu diario</p>
-          </div>
+          </Reveal>
 
-          <div className="glass rounded-3xl p-8 sm:p-10 border border-white/10 shadow-2xl">
-            <h2 className="text-2xl font-semibold text-text mb-8">Ingresar</h2>
+          <Reveal delay={120}>
+            <div className="panel-card p-8 sm:p-10">
+              <h2 className="page-title mb-8">Ingresar</h2>
 
-            {error && (
-              <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 mb-6 text-sm">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span className="leading-tight">{error}</span>
-              </div>
-            )}
-
-            {magicLinkSent ? (
-              <div className="text-center py-6">
-                <div className="flex items-center justify-center w-14 h-14 bg-emerald-500/20 border border-emerald-500/40 rounded-full mx-auto mb-4 glow-green">
-                  <Mail className="w-7 h-7 text-emerald-400" />
+              {error && (
+                <div className="alert alert-err mb-6">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="leading-tight">{error}</span>
                 </div>
-                <p className="text-text font-medium mb-2 text-lg">¡Link enviado!</p>
-                <p className="text-textMuted text-sm leading-relaxed mb-6">
-                  Revisá tu bandeja de entrada de <span className="text-primary font-medium">{email}</span> y hacé click en el enlace para ingresar de forma segura.
-                </p>
-                <button
-                  onClick={() => setMagicLinkSent(false)}
-                  className="text-sm font-medium text-primary hover:text-primaryHover transition"
-                >
-                  Volver al inicio de sesión
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handlePasswordLogin} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-textMuted mb-2" htmlFor="login-email">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-textMuted" />
-                    <input
-                      id="login-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="tu@email.com"
-                      required
-                      className="w-full bg-white/5 border border-white/10 text-text placeholder-white/20 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 transition"
-                    />
+              )}
+
+              {magicLinkSent ? (
+                <div className="text-center py-6">
+                  <div className="flex items-center justify-center w-14 h-14 tag tag-win rounded-full mx-auto mb-4" style={{ padding: 0, width: 56, height: 56 }}>
+                    <Mail className="w-7 h-7" />
                   </div>
+                  <p className="text-text font-medium mb-2 text-lg">¡Link enviado!</p>
+                  <p className="text-textMuted text-sm leading-relaxed mb-6">
+                    Revisá tu bandeja de entrada de <span className="text-primary font-medium">{email}</span> y hacé click en el enlace para ingresar.
+                  </p>
+                  <button onClick={() => setMagicLinkSent(false)} className="btn btn-ghost btn-sm">
+                    Volver al inicio de sesión
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-textMuted mb-2" htmlFor="login-password">Contraseña</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-textMuted" />
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      className="w-full bg-white/5 border border-white/10 text-text placeholder-white/20 rounded-xl pl-11 pr-11 py-3 text-sm focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 transition font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-textMuted hover:text-text transition"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+              ) : (
+                <form onSubmit={handlePasswordLogin} className="space-y-5">
+                  <div className="field">
+                    <label htmlFor="login-email">Email</label>
+                    <div className="input-icon-wrap">
+                      <Mail className="input-icon w-4 h-4" />
+                      <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required className="input" />
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  id="login-submit"
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full btn-primary py-3.5 text-[15px] mt-2"
-                >
-                  {isLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                      Ingresando...
-                    </span>
-                  ) : 'Iniciar sesión'}
-                </button>
+                  <div className="field">
+                    <label htmlFor="login-password">Contraseña</label>
+                    <div className="input-icon-wrap relative">
+                      <Lock className="input-icon w-4 h-4" />
+                      <input id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="input mono pr-11" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="input-action" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-3 my-6">
-                  <div className="flex-1 h-px bg-white/10" />
-                  <span className="text-white/20 text-xs font-medium uppercase tracking-widest">o</span>
-                  <div className="flex-1 h-px bg-white/10" />
-                </div>
+                  <button id="login-submit" type="submit" disabled={isLoading} className="btn btn-primary w-full mt-2">
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="spin" />
+                        Ingresando...
+                      </span>
+                    ) : 'Iniciar sesión'}
+                  </button>
 
-                <button
-                  id="login-magic-link"
-                  type="button"
-                  onClick={handleMagicLink}
-                  disabled={isLoading}
-                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 disabled:opacity-50 text-textMuted hover:text-text font-medium rounded-xl py-3 text-sm transition-all flex items-center justify-center gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Ingresar con Magic Link
-                </button>
-              </form>
-            )}
-          </div>
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-[var(--line)]" />
+                    <span className="text-textMuted text-xs font-medium uppercase tracking-widest">o</span>
+                    <div className="flex-1 h-px bg-[var(--line)]" />
+                  </div>
 
-          <p className="text-center text-textMuted text-sm mt-8 font-medium">
-            ¿No tenés cuenta?{' '}
-            <Link to="/signup" className="text-primary hover:text-primaryHover transition">
-              Crear cuenta nueva
-            </Link>
-          </p>
+                  <button id="login-magic-link" type="button" onClick={handleMagicLink} disabled={isLoading} className="btn btn-ghost w-full">
+                    <Mail className="w-4 h-4" />
+                    Ingresar con Magic Link
+                  </button>
+                </form>
+              )}
+            </div>
+          </Reveal>
+
+          <Reveal delay={200}>
+            <p className="text-center text-textMuted text-sm mt-8 font-medium">
+              ¿No tenés cuenta?{' '}
+              <Link to="/signup" className="text-primary hover:underline">
+                Crear cuenta nueva
+              </Link>
+            </p>
+          </Reveal>
         </div>
       </div>
     </div>

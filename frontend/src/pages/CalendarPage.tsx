@@ -97,20 +97,19 @@ const CalendarPage: React.FC = () => {
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-text flex items-center gap-2.5">
+          <h1 className="page-title flex items-center gap-2.5">
             <CalendarDays className="w-6 h-6 text-primary" />
             Calendario
           </h1>
-          <p className="text-textMuted text-sm mt-1">Revisá tu consistencia a lo largo del mes.</p>
+          <p className="page-sub mt-1">Revisá tu consistencia a lo largo del mes.</p>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Strategy Selector */}
-          <div className="hidden sm:block">
+          <div className="hidden sm:block field">
             <select 
               value={strategyFilter} 
               onChange={e => setStrategyFilter(e.target.value)}
-              className="bg-white/5 border border-white/10 text-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+              className="input"
             >
               <option value="">Todas las estrategias</option>
               {strategies.map(s => (
@@ -118,28 +117,27 @@ const CalendarPage: React.FC = () => {
               ))}
             </select>
           </div>
-          <button onClick={goToday} className="px-3 py-2 text-sm font-medium text-text hover:bg-white/5 transition rounded-lg border border-white/10">
+          <button onClick={goToday} className="btn btn-ghost btn-sm">
             Hoy
           </button>
-          <div className="flex items-center glass rounded-lg border border-white/10 p-0.5">
-            <button onClick={prevMonth} className="p-1.5 text-textMuted hover:text-text transition rounded-md hover:bg-white/5"><ChevronLeft className="w-5 h-5" /></button>
-            <div className="w-40 text-center font-semibold text-sm capitalize">{monthName}</div>
-            <button onClick={nextMonth} className="p-1.5 text-textMuted hover:text-text transition rounded-md hover:bg-white/5"><ChevronRight className="w-5 h-5" /></button>
+          <div className="seg">
+            <button type="button" onClick={prevMonth} className="btn-icon" style={{ width: 36, height: 36, padding: 0 }}><ChevronLeft className="w-5 h-5" /></button>
+            <span className="px-3 font-semibold text-sm capitalize">{monthName}</span>
+            <button type="button" onClick={nextMonth} className="btn-icon" style={{ width: 36, height: 36, padding: 0 }}><ChevronRight className="w-5 h-5" /></button>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar Grid */}
-        <div className="lg:col-span-2 glass rounded-2xl border border-white/10 p-5">
-          <div className="grid grid-cols-7 gap-2 mb-2">
+        <div className="lg:col-span-2 panel-card p-5">
+          <div className="cal mb-2">
             {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-textMuted py-2">{day}</div>
+              <div key={day} className="cal-dow">{day}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-2">
+          <div className="cal">
             {Array.from({ length: startOffset }).map((_, i) => (
-              <div key={`empty-${i}`} className="p-2 aspect-square rounded-xl opacity-0" />
+              <div key={`empty-${i}`} className="cal-day empty" />
             ))}
             
             {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -150,40 +148,36 @@ const CalendarPage: React.FC = () => {
               const isToday = dateStr === new Date().toISOString().split('T')[0];
               
               const stats = calcDayStats(dayTrades);
-              let bgColor = 'bg-white/3 hover:bg-white/7 border-white/5';
-              let textColor = 'text-textMuted';
-              
+              let dayClass = 'cal-day clickable';
               if (dayTrades.length > 0) {
-                if (stats.totalPnl > 0) { bgColor = 'bg-accent/10 border-accent/20 hover:bg-accent/20'; textColor = 'text-accent'; }
-                else if (stats.totalPnl < 0) { bgColor = 'bg-red-400/10 border-red-400/20 hover:bg-red-400/20'; textColor = 'text-red-400'; }
-                else { bgColor = 'bg-yellow-400/10 border-yellow-400/20 hover:bg-yellow-400/20'; textColor = 'text-yellow-400'; }
+                if (stats.totalPnl > 0) dayClass += ' up';
+                else if (stats.totalPnl < 0) dayClass += ' dn';
               }
+              if (isToday) dayClass += ' today';
+              if (isSelected) dayClass += ' selected';
 
               return (
                 <button
                   key={day}
+                  type="button"
                   onClick={() => setSelectedDay(dateStr)}
-                  className={`relative p-2 aspect-square rounded-xl border flex flex-col items-center justify-center transition-all duration-200 group ${bgColor} ${isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
+                  className={dayClass}
                 >
-                  <span className={`text-sm font-semibold ${textColor}`}>{day}</span>
-                  
+                  <span className="cd-n">{day}</span>
                   {dayTrades.length > 0 && (
-                    <div className="mt-1 text-[10px] font-medium opacity-80">
+                    <span className="cd-v">
                       {stats.totalPnl > 0 ? '+' : ''}{fmtCurrency(stats.totalPnl)}
-                    </div>
+                    </span>
                   )}
-
-                  {isToday && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Selected Day Details */}
         <div className="lg:col-span-1">
           {selectedDay ? (
-            <div className="glass rounded-2xl border border-white/10 p-5 sticky top-24">
+            <div className="panel-card p-5 sticky top-24">
               <div className="flex items-center gap-2 mb-1">
                 <CalendarDays className="w-4 h-4 text-primary" />
                 <h3 className="font-semibold text-text text-lg">
@@ -201,20 +195,20 @@ const CalendarPage: React.FC = () => {
               ) : (
                 <div className="mt-5 space-y-5">
                   {/* Summary Card */}
-                  <div className={`rounded-xl p-4 border ${isPositiveDay ? 'bg-accent/10 border-accent/20' : isNegativeDay ? 'bg-red-400/10 border-red-400/20' : 'bg-yellow-400/10 border-yellow-400/20'}`}>
-                    <div className="text-xs text-textMuted mb-2 uppercase font-semibold">Resumen del Día</div>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className={`stat-card ${isPositiveDay ? 'border-[var(--acc)]' : isNegativeDay ? 'border-[var(--red)]' : ''}`}>
+                    <div className="sc-lbl mb-2">Resumen del Día</div>
+                    <div className="fund-stats" style={{ gridTemplateColumns: '1fr 1fr', borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
                       <div>
-                        <div className="text-xs opacity-70 mb-0.5">P&L Diario</div>
-                        <div className={`text-lg font-bold ${isPositiveDay ? 'text-accent' : isNegativeDay ? 'text-red-400' : 'text-yellow-400'}`}>
+                        <div className="fs-t">P&L Diario</div>
+                        <div className={`sc-val ${isPositiveDay ? 'accent' : isNegativeDay ? 'negative' : ''}`}>
                           {isPositiveDay ? '+' : ''}{fmtCurrency(selectedDayStats.totalPnl)}
                         </div>
-                        <div className="text-[11px] opacity-70 mt-0.5">{isPositiveDay ? '+' : ''}{selectedDayStats.totalPct.toFixed(2)}%</div>
+                        <div className="sc-sub">{isPositiveDay ? '+' : ''}{selectedDayStats.totalPct.toFixed(2)}%</div>
                       </div>
                       <div>
-                        <div className="text-xs opacity-70 mb-0.5">RR Promedio</div>
-                        <div className="text-lg font-bold text-text">{selectedDayStats.avgRR}</div>
-                        <div className="text-[11px] opacity-70 mt-0.5">{selectedDayStats.count} operacion(es)</div>
+                        <div className="fs-t">RR Promedio</div>
+                        <div className="sc-val">{selectedDayStats.avgRR}</div>
+                        <div className="sc-sub">{selectedDayStats.count} operacion(es)</div>
                       </div>
                     </div>
                   </div>
@@ -226,29 +220,30 @@ const CalendarPage: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       {selectedDayTrades.map(trade => (
-                        <div key={trade.id} className="bg-white/3 border border-white/5 rounded-lg p-3 hover:border-white/10 transition group">
+                        <div key={trade.id} className="fund-card p-3 group">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <span className="font-semibold text-text text-sm">{trade.asset}</span>
-                              <div className={`flex items-center gap-1 text-[11px] font-medium mt-0.5 ${trade.direction === 'compra' ? 'text-accent' : 'text-red-400'}`}>
+                              <span className="sym">{trade.asset}</span>
+                              <div className={`flex items-center gap-1 text-[11px] font-medium mt-0.5 ${trade.direction === 'compra' ? 'text-acc' : 'text-loss'}`}>
                                 {trade.direction === 'compra' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                 <span className="capitalize">{trade.direction}</span>
                               </div>
                             </div>
                             <button
                               onClick={() => { setEditingTrade(trade); setShowForm(true); }}
-                              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md text-textMuted hover:text-primary transition opacity-0 group-hover:opacity-100"
+                              className="btn-icon opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ width: 28, height: 28 }}
                             >
                               <Pencil className="w-3 h-3" />
                             </button>
                           </div>
                           
-                          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-white/5">
-                            <span className="text-textMuted flex items-center gap-1">
+                          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-[var(--line)]">
+                            <span className="sc-sub flex items-center gap-1">
                               <Target className="w-3 h-3" /> {trade.risk_reward || 'RR: —'}
                             </span>
                             <span className={`font-semibold ${
-                              (trade.result_amount ?? 0) > 0 ? 'text-accent' : (trade.result_amount ?? 0) < 0 ? 'text-red-400' : 'text-text'
+                              (trade.result_amount ?? 0) > 0 ? 'text-acc' : (trade.result_amount ?? 0) < 0 ? 'text-loss' : ''
                             }`}>
                               {trade.result_amount != null ? (trade.result_amount > 0 ? '+' : '') + fmtCurrency(trade.result_amount) : 'En curso'}
                             </span>
@@ -261,7 +256,7 @@ const CalendarPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="glass rounded-2xl border border-white/10 border-dashed h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center text-textMuted">
+            <div className="panel-card border-dashed h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center text-textMuted">
               <CalendarDays className="w-8 h-8 opacity-40 mb-3" />
               <p className="text-sm">Seleccioná un día en el calendario para ver el detalle de tus operativas.</p>
             </div>

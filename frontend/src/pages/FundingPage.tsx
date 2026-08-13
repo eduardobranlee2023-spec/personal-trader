@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useFundedInvestments } from '../hooks/useFundedInvestments';
 import type { FundedInvestment, InvestmentStatus } from '../hooks/useFundedInvestments';
@@ -12,11 +13,11 @@ import { WithdrawalsSection } from '../components/funding/WithdrawalsSection';
 const fmtUSD = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
-const STATUS_STYLE: Record<InvestmentStatus, { bg: string; text: string; label: string }> = {
-  pendiente:    { bg: 'bg-amber-400/10 border-amber-400/20',  text: 'text-amber-400',   label: 'Pendiente' },
-  aprobada:     { bg: 'bg-emerald-400/10 border-emerald-400/20', text: 'text-emerald-400', label: 'Aprobada ✓' },
-  rechazada:    { bg: 'bg-red-400/10 border-red-400/20',      text: 'text-red-400',      label: 'Rechazada' },
-  reintentando: { bg: 'bg-blue-400/10 border-blue-400/20',    text: 'text-blue-400',     label: 'Retry' },
+const STATUS_STYLE: Record<InvestmentStatus, { tag: string; label: string }> = {
+  pendiente:    { tag: 'tag tag-warn',   label: 'Pendiente' },
+  aprobada:     { tag: 'tag tag-win',    label: 'Aprobada ✓' },
+  rechazada:    { tag: 'tag tag-loss',   label: 'Rechazada' },
+  reintentando: { tag: 'tag tag-info',   label: 'Retry' },
 };
 
 const FundingPage: React.FC = () => {
@@ -41,6 +42,28 @@ const FundingPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'evaluaciones' | 'retiros'>('evaluaciones');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Si llegamos desde AccountsPage con ?account=<id>, pre-abrir el form
+  useEffect(() => {
+    const accountParam = searchParams.get('account');
+    if (accountParam) {
+      setEditingInvestment(null);
+      setFormData(prev => ({
+        ...prev,
+        provider: '',
+        amount_invested: '',
+        investment_date: new Date().toISOString().split('T')[0],
+        status: 'pendiente',
+        trading_account_id: accountParam,
+        notes: '',
+      }));
+      setFormError('');
+      setIsFormOpen(true);
+      // Limpiar el param de la URL sin recargar
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const openNew = () => {
     setEditingInvestment(null);
@@ -126,17 +149,19 @@ const FundingPage: React.FC = () => {
   return (
     <AppLayout>
       {/* Header and Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/10 pb-4">
-        <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-[var(--line)] pb-4">
+        <div className="seg">
           <button 
+            type="button"
             onClick={() => setActiveTab('evaluaciones')}
-            className={`text-lg font-bold pb-2 transition border-b-2 ${activeTab === 'evaluaciones' ? 'text-primary border-primary' : 'text-textMuted border-transparent hover:text-text'}`}
+            className={activeTab === 'evaluaciones' ? 'on-acc' : ''}
           >
             Evaluaciones
           </button>
           <button 
+            type="button"
             onClick={() => setActiveTab('retiros')}
-            className={`text-lg font-bold pb-2 transition border-b-2 ${activeTab === 'retiros' ? 'text-primary border-primary' : 'text-textMuted border-transparent hover:text-text'}`}
+            className={activeTab === 'retiros' ? 'on-acc' : ''}
           >
             Retiros
           </button>
@@ -149,107 +174,99 @@ const FundingPage: React.FC = () => {
             <h2 className="text-xl font-bold text-text flex items-center gap-2">
               <BadgeDollarSign className="w-5 h-5 text-primary" /> Fondeos
             </h2>
-            <button onClick={openNew} className="btn-primary flex items-center gap-2">
+            <button onClick={openNew} className="btn btn-primary btn-sm flex items-center gap-2">
               <Plus className="w-4 h-4" /> Nueva Inversión
             </button>
           </div>
 
           {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
-              <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
-                <Target className="w-3.5 h-3.5 text-primary" /> Total Invertido
+          <div className="stat-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><Target className="w-3.5 h-3.5 text-primary" /> Total Invertido</span>
               </div>
-              <div className="text-2xl font-bold font-mono text-text">{fmtUSD(metrics.totalInvested)}</div>
-              <div className="text-xs text-textMuted mt-1">{investments.length} evaluación{investments.length !== 1 ? 'es' : ''}</div>
+              <div className="sc-val accent mono">{fmtUSD(metrics.totalInvested)}</div>
+              <div className="sc-sub">{investments.length} evaluación{investments.length !== 1 ? 'es' : ''}</div>
             </div>
-            <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
-              <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Total Recuperado
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-acc" /> Total Recuperado</span>
               </div>
-              <div className={`text-2xl font-bold font-mono ${metrics.totalRecovered > 0 ? 'text-emerald-400' : 'text-text'}`}>
+              <div className={`sc-val mono ${metrics.totalRecovered > 0 ? 'accent' : ''}`}>
                 {fmtUSD(metrics.totalRecovered)}
               </div>
-              <div className="text-xs text-textMuted mt-1">P&L de cuentas fondeadas vinculadas</div>
+              <div className="sc-sub">P&L de cuentas fondeadas vinculadas</div>
             </div>
-            <div className={`glass rounded-2xl border p-5 card-hover ${
-              roiPositive ? 'border-emerald-400/20 glow-green' : metrics.netRoi < 0 ? 'border-red-400/20 glow-red' : 'border-white/10'
-            }`}>
-              <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
-                <BadgeDollarSign className={`w-3.5 h-3.5 ${roiPositive ? 'text-emerald-400' : 'text-red-400'}`} /> ROI de Fondeo
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><BadgeDollarSign className={`w-3.5 h-3.5 ${roiPositive ? 'text-acc' : 'text-loss'}`} /> ROI de Fondeo</span>
               </div>
-              <div className={`text-2xl font-bold font-mono ${roiPositive ? 'text-emerald-400' : metrics.netRoi < 0 ? 'text-red-400' : 'text-text'}`}>
+              <div className={`sc-val mono ${roiPositive ? 'accent' : metrics.netRoi < 0 ? 'negative' : ''}`}>
                 {metrics.netRoi > 0 ? '+' : ''}{metrics.netRoi.toFixed(1)}%
               </div>
-              <div className="text-xs text-textMuted mt-1">Recuperado vs. invertido</div>
+              <div className="sc-sub">Recuperado vs. invertido</div>
             </div>
-            <div className="glass rounded-2xl border border-white/10 p-5 card-hover">
-              <div className="flex items-center gap-2 mb-2 text-textMuted text-xs">
-                <TrendingDown className="w-3.5 h-3.5 text-red-400" /> Tasa de Aprobación
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><TrendingDown className="w-3.5 h-3.5 text-loss" /> Tasa de Aprobación</span>
               </div>
-              <div className="text-2xl font-bold font-mono text-emerald-400">
-                {approvedPct}%
-              </div>
-              <div className="text-xs text-textMuted mt-1">Quemadas: <span className="text-red-400 font-mono">{blownPct}%</span></div>
+              <div className="sc-val accent mono">{approvedPct}%</div>
+              <div className="sc-sub">Quemadas: <span className="text-loss mono">{blownPct}%</span></div>
             </div>
           </div>
 
           {/* Loading */}
           {isLoading && (
             <div className="flex items-center justify-center py-20 text-textMuted gap-2">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span className="spinner" />
               Cargando inversiones...
             </div>
           )}
 
-          {/* Empty state */}
           {!isLoading && investments.length === 0 && (
-            <div className="glass rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center py-20 gap-3 text-textMuted">
+            <div className="panel-card border-dashed flex flex-col items-center justify-center py-20 gap-3 text-textMuted">
               <BadgeDollarSign className="w-10 h-10 opacity-20" />
               <p className="text-sm">No registraste ninguna compra de evaluación.</p>
-              <button onClick={openNew} className="btn-primary mt-2 flex items-center gap-2">
+              <button onClick={openNew} className="btn btn-primary btn-sm mt-2">
                 <Plus className="w-4 h-4" /> Registrar primera inversión
               </button>
             </div>
           )}
 
-          {/* Desktop table */}
           {!isLoading && investments.length > 0 && (
             <>
-              <div className="hidden md:block glass rounded-2xl border border-white/10 overflow-hidden">
-                <table className="w-full text-left">
+              <div className="hidden md:block ptable-wrap">
+                <table className="ptable">
                   <thead>
-                    <tr className="border-b border-white/10 text-xs text-textMuted bg-white/2">
-                      <th className="p-4 font-medium">Fecha</th>
-                      <th className="p-4 font-medium">Proveedor</th>
-                      <th className="p-4 font-medium">Monto</th>
-                      <th className="p-4 font-medium">Estado</th>
-                      <th className="p-4 font-medium">Cuenta Vinculada</th>
-                      <th className="p-4 font-medium text-right">Acciones</th>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Proveedor</th>
+                      <th>Monto</th>
+                      <th>Estado</th>
+                      <th>Cuenta Vinculada</th>
+                      <th style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody>
                     {investments.map(inv => {
                       const style = STATUS_STYLE[inv.status];
                       const linkedAccount = accounts.find(a => a.id === inv.trading_account_id);
                       return (
-                        <tr key={inv.id} className="hover:bg-white/3 transition group text-sm">
-                          <td className="p-4 text-textMuted font-mono text-xs">{inv.investment_date}</td>
-                          <td className="p-4 font-semibold text-text">{inv.provider}</td>
-                          <td className="p-4 font-mono font-bold text-text">{fmtUSD(inv.amount_invested)}</td>
-                          <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold border ${style.bg} ${style.text}`}>
-                              {style.label}
-                            </span>
+                        <tr key={inv.id}>
+                          <td className="mono">{inv.investment_date}</td>
+                          <td className="sym">{inv.provider}</td>
+                          <td className="sym">{fmtUSD(inv.amount_invested)}</td>
+                          <td>
+                            <span className={style.tag}>{style.label}</span>
                           </td>
-                          <td className="p-4 text-textMuted">{linkedAccount?.name || '—'}</td>
-                          <td className="p-4">
-                            <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition">
-                              <button onClick={() => openEdit(inv)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-textMuted transition">
+                          <td>{linkedAccount?.name || '—'}</td>
+                          <td>
+                            <div className="flex justify-end gap-1.5">
+                              <button onClick={() => openEdit(inv)} className="btn-icon" style={{ width: 32, height: 32 }}>
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => handleDelete(inv.id)} disabled={deletingId === inv.id}
-                                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 transition disabled:opacity-50">
+                                className="btn btn-danger btn-sm btn-icon" style={{ width: 32, height: 32, padding: 0 }}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -261,38 +278,35 @@ const FundingPage: React.FC = () => {
                 </table>
               </div>
 
-              {/* Mobile cards */}
               <div className="md:hidden space-y-3">
                 {investments.map(inv => {
                   const style = STATUS_STYLE[inv.status];
                   const linkedAccount = accounts.find(a => a.id === inv.trading_account_id);
                   return (
-                    <div key={inv.id} className="glass rounded-2xl border border-white/10 p-4">
-                      <div className="flex items-start justify-between mb-3">
+                    <div key={inv.id} className="fund-card">
+                      <div className="fund-head">
                         <div>
-                          <div className="font-bold text-text">{inv.provider}</div>
-                          <div className="text-xs text-textMuted font-mono mt-0.5">{inv.investment_date}</div>
+                          <div className="fund-name">{inv.provider}</div>
+                          <div className="fund-sub">{inv.investment_date}</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold font-mono text-text">{fmtUSD(inv.amount_invested)}</div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase ${style.bg} ${style.text}`}>
-                            {style.label}
-                          </span>
+                          <div className="fs-v">{fmtUSD(inv.amount_invested)}</div>
+                          <span className={style.tag}>{style.label}</span>
                         </div>
                       </div>
                       {linkedAccount && (
-                        <div className="text-xs text-textMuted mb-3 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                        <div className="fund-sub mb-3 flex items-center gap-1">
+                          <span className="tag tag-win" style={{ width: 6, height: 6, padding: 0, minWidth: 6 }} />
                           Cuenta: {linkedAccount.name}
                         </div>
                       )}
-                      {inv.notes && <div className="text-xs text-textMuted mb-3 border-t border-white/5 pt-2">{inv.notes}</div>}
-                      <div className="flex gap-2 pt-2 border-t border-white/5">
-                        <button onClick={() => openEdit(inv)} className="flex items-center gap-1.5 text-xs text-textMuted hover:text-text">
+                      {inv.notes && <div className="fund-sub mb-3 border-t border-[var(--line)] pt-2">{inv.notes}</div>}
+                      <div className="flex gap-2 pt-2 border-t border-[var(--line)]">
+                        <button onClick={() => openEdit(inv)} className="btn btn-ghost btn-sm">
                           <Edit2 className="w-3 h-3" /> Editar
                         </button>
                         <button onClick={() => handleDelete(inv.id)} disabled={deletingId === inv.id}
-                          className="flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-400 ml-auto disabled:opacity-50">
+                          className="btn btn-danger btn-sm ml-auto">
                           <Trash2 className="w-3 h-3" /> Eliminar
                         </button>
                       </div>
@@ -303,61 +317,60 @@ const FundingPage: React.FC = () => {
             </>
           )}
 
-          {/* Form Modal */}
           {isFormOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-              <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative my-8">
-                <button onClick={closeForm} className="absolute right-4 top-4 p-2 text-textMuted hover:text-text rounded-full hover:bg-white/5 transition">
-                  <X className="w-5 h-5" />
-                </button>
-                <h2 className="text-xl font-bold text-text mb-6">
-                  {editingInvestment ? 'Editar Inversión' : 'Nueva Inversión'}
-                </h2>
-                <form onSubmit={handleSave} className="space-y-4">
+            <div className="modal" onClick={closeForm}>
+              <div className="modal-card" onClick={e => e.stopPropagation()}>
+                <div className="modal-head">
+                  <h3>{editingInvestment ? 'Editar Inversión' : 'Nueva Inversión'}</h3>
+                  <button type="button" onClick={closeForm} className="btn-icon">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <form id="funding-form" onSubmit={handleSave} className="modal-body space-y-4">
                   {formError && (
-                    <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+                    <div className="alert alert-err">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       {formError}
                     </div>
                   )}
-                  <div>
-                    <label className="block text-sm font-medium text-textMuted mb-1.5">Proveedor *</label>
+                  <div className="field">
+                    <label>Proveedor *</label>
                     <input type="text" required value={formData.provider}
                       onChange={e => setFormData({ ...formData, provider: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60"
+                      className="input"
                       placeholder="FTMO, MyFundedFX, The5ers..." />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-textMuted mb-1.5">Monto (USD) *</label>
+                  <div className="m-grid">
+                    <div className="field">
+                      <label>Monto (USD) *</label>
                       <input type="number" step="0.01" required value={formData.amount_invested}
                         onChange={e => setFormData({ ...formData, amount_invested: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60 font-mono"
+                        className="input mono"
                         placeholder="0" />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-textMuted mb-1.5">Fecha *</label>
+                    <div className="field">
+                      <label>Fecha *</label>
                       <input type="date" required value={formData.investment_date}
                         onChange={e => setFormData({ ...formData, investment_date: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60" />
+                        className="input" />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-textMuted mb-1.5">Estado</label>
+                  <div className="field">
+                    <label>Estado</label>
                     <select value={formData.status}
                       onChange={e => setFormData({ ...formData, status: e.target.value as InvestmentStatus })}
-                      className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60">
+                      className="input">
                       <option value="pendiente">🕐 Pendiente — en evaluación</option>
                       <option value="aprobada">✅ Aprobada — fondeado</option>
                       <option value="rechazada">❌ Rechazada — quemada</option>
                       <option value="reintentando">🔄 Retry — reintentando</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-textMuted mb-1.5">Vincular a Cuenta (opcional)</label>
+                  <div className="field">
+                    <label>Vincular a Cuenta (opcional)</label>
                     <select value={formData.trading_account_id}
                       onChange={e => setFormData({ ...formData, trading_account_id: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60">
+                      className="input">
                       <option value="">Sin vincular</option>
                       {fundedAccounts.length > 0 ? (
                         fundedAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)
@@ -365,25 +378,27 @@ const FundingPage: React.FC = () => {
                         accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)
                       )}
                     </select>
-                    <p className="text-xs text-textMuted mt-1">Vinculá cuando pases la evaluación para ver el ROI real.</p>
+                    <p className="sc-sub">Vinculá cuando pases la evaluación para ver el ROI real.</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-textMuted mb-1.5">Notas</label>
+                  <div className="field">
+                    <label>Notas</label>
                     <textarea value={formData.notes} rows={2}
                       onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 text-text rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/60 resize-none"
+                      className="input"
                       placeholder="Tamaño de cuenta, reglas especiales..." />
                   </div>
-                  <button type="submit" disabled={isSaving}
-                    className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                </form>
+                <div className="modal-foot">
+                  <button type="submit" form="funding-form" disabled={isSaving}
+                    className="btn btn-primary w-full">
                     {isSaving ? (
                       <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span className="spin" />
                         Guardando...
                       </span>
                     ) : (editingInvestment ? 'Actualizar Inversión' : 'Registrar Inversión')}
                   </button>
-                </form>
+                </div>
               </div>
             </div>
           )}

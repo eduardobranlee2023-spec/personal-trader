@@ -5,25 +5,25 @@ import type { Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   TrendingUp, Users, LogOut, CheckCircle2, Clock, XCircle,
-  Shield, Calendar, ChevronDown, Loader2
+  Shield, Calendar, ChevronDown
 } from 'lucide-react';
 
 type AccessStatus = 'pendiente' | 'activo' | 'revocado';
 
-const statusConfig: Record<AccessStatus, { label: string; color: string; icon: React.ReactNode }> = {
+const statusConfig: Record<AccessStatus, { label: string; tag: string; icon: React.ReactNode }> = {
   activo: {
     label: 'Activo',
-    color: 'text-accent bg-accent/10 border-accent/30',
+    tag: 'tag tag-win',
     icon: <CheckCircle2 className="w-3.5 h-3.5" />,
   },
   pendiente: {
     label: 'Pendiente',
-    color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+    tag: 'tag tag-warn',
     icon: <Clock className="w-3.5 h-3.5" />,
   },
   revocado: {
     label: 'Revocado',
-    color: 'text-red-400 bg-red-400/10 border-red-400/30',
+    tag: 'tag tag-loss',
     icon: <XCircle className="w-3.5 h-3.5" />,
   },
 };
@@ -100,14 +100,14 @@ const AdminPanel: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
-      <nav className="border-b border-white/10 bg-surface/50 backdrop-blur-md sticky top-0 z-50">
+      <nav className="shell-topbar">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 bg-primary/20 border border-primary/40 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-primary" />
+            <div className="brand-mark">
+              <TrendingUp className="w-5 h-5" />
             </div>
             <span className="font-bold text-text text-lg">Personal Trader</span>
-            <span className="flex items-center gap-1 text-xs text-accent bg-accent/10 border border-accent/30 px-2 py-0.5 rounded-full">
+            <span className="tag tag-win">
               <Shield className="w-3 h-3" />
               Admin
             </span>
@@ -116,14 +116,14 @@ const AdminPanel: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/dashboard')}
-              className="text-sm text-textMuted hover:text-text transition px-3 py-1.5 rounded-lg hover:bg-white/5"
+              className="btn btn-ghost btn-sm"
             >
               Dashboard
             </button>
             <button
               id="admin-signout"
               onClick={handleSignOut}
-              className="text-textMuted hover:text-red-400 transition p-1.5"
+              className="btn-icon text-loss"
               title="Cerrar sesión"
             >
               <LogOut className="w-4 h-4" />
@@ -133,47 +133,39 @@ const AdminPanel: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-10">
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-text flex items-center gap-3">
+          <h1 className="page-title flex items-center gap-3">
             <Users className="w-8 h-8 text-primary" />
             Gestión de Usuarios
           </h1>
-          <p className="text-textMuted mt-1">Activá, pausá o revocá el acceso de los traders registrados.</p>
+          <p className="page-sub mt-1">Activá, pausá o revocá el acceso de los traders registrados.</p>
         </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div className="stat-grid grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           {[
-            { label: 'Total', value: stats.total, color: 'text-text' },
-            { label: 'Activos', value: stats.active, color: 'text-accent' },
-            { label: 'Pendientes', value: stats.pending, color: 'text-yellow-400' },
-            { label: 'Revocados', value: stats.revoked, color: 'text-red-400' },
+            { label: 'Total', value: stats.total, accent: false, negative: false },
+            { label: 'Activos', value: stats.active, accent: true, negative: false },
+            { label: 'Pendientes', value: stats.pending, warn: true },
+            { label: 'Revocados', value: stats.revoked, negative: true },
           ].map(s => (
-            <div key={s.label} className="glass rounded-xl p-5 border border-white/10">
-              <div className={`text-3xl font-bold ${s.color} mb-1`}>{s.value}</div>
-              <div className="text-sm text-textMuted">{s.label}</div>
+            <div key={s.label} className="stat-card">
+              <div className={`sc-val ${s.accent ? 'accent' : s.negative ? 'negative' : s.warn ? 'text-warn' : ''}`}>{s.value}</div>
+              <div className="sc-sub">{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Success / error message */}
         {message && (
-          <div className={`flex items-center gap-2 rounded-lg px-4 py-3 mb-5 text-sm border ${
-            message.type === 'success'
-              ? 'bg-accent/10 border-accent/30 text-accent'
-              : 'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}>
+          <div className={`alert mb-5 ${message.type === 'success' ? 'alert-ok' : 'alert-err'}`}>
             {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
             {message.text}
           </div>
         )}
 
-        {/* Users table */}
-        <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+        <div className="panel-card overflow-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <span className="spinner" />
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-20 text-textMuted">
@@ -181,99 +173,84 @@ const AdminPanel: React.FC = () => {
               <p>No hay usuarios registrados.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="ptable-wrap border-0 rounded-none">
+              <table className="ptable">
                 <thead>
-                  <tr className="border-b border-white/10 text-textMuted">
-                    <th className="text-left px-6 py-4 font-medium">Usuario</th>
-                    <th className="text-left px-6 py-4 font-medium">Rol</th>
-                    <th className="text-left px-6 py-4 font-medium">Registro</th>
-                    <th className="text-left px-6 py-4 font-medium">Activación</th>
-                    <th className="text-left px-6 py-4 font-medium">Estado</th>
-                    <th className="text-right px-6 py-4 font-medium">Acción</th>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Registro</th>
+                    <th>Activación</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'right' }}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user, idx) => {
+                  {users.map((user) => {
                     const status = user.access_status as AccessStatus;
                     const cfg = statusConfig[status];
                     const isUpdating = updatingId === user.id;
 
                     return (
-                      <tr
-                        key={user.id}
-                        className={`border-b border-white/5 hover:bg-white/3 transition-colors ${idx % 2 === 0 ? '' : 'bg-white/2'}`}
-                      >
-                        {/* User info */}
-                        <td className="px-6 py-4">
+                      <tr key={user.id}>
+                        <td>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
+                            <div className="avatar">
                               {user.email?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
-                              <div className="text-text font-medium">{user.full_name || '(sin nombre)'}</div>
-                              <div className="text-textMuted text-xs">{user.email}</div>
+                              <div className="sym">{user.full_name || '(sin nombre)'}</div>
+                              <div className="sc-sub">{user.email}</div>
                             </div>
                           </div>
                         </td>
 
-                        {/* Role */}
-                        <td className="px-6 py-4">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                            user.role === 'admin'
-                              ? 'text-purple-400 bg-purple-400/10 border-purple-400/30'
-                              : 'text-textMuted bg-white/5 border-white/10'
-                          }`}>
+                        <td>
+                          <span className={`tag ${user.role === 'admin' ? 'tag-info' : 'tag-neutral'}`}>
                             {user.role === 'admin' ? '⚡ Admin' : 'Trader'}
                           </span>
                         </td>
 
-                        {/* Created at */}
-                        <td className="px-6 py-4 text-textMuted">
+                        <td>
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 shrink-0" />
                             {new Date(user.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                           </div>
                         </td>
 
-                        {/* Granted at */}
-                        <td className="px-6 py-4 text-textMuted text-xs">
+                        <td className="sc-sub">
                           {user.access_granted_at
                             ? new Date(user.access_granted_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-                            : <span className="opacity-40">—</span>}
+                            : '—'}
                         </td>
 
-                        {/* Status badge */}
-                        <td className="px-6 py-4">
-                          <span className={`flex items-center gap-1.5 w-fit text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.color}`}>
+                        <td>
+                          <span className={`${cfg.tag} flex items-center gap-1.5 w-fit`}>
                             {cfg.icon}
                             {cfg.label}
                           </span>
                         </td>
 
-                        {/* Action dropdown */}
-                        <td className="px-6 py-4 text-right">
+                        <td style={{ textAlign: 'right' }}>
                           <div className="flex items-center justify-end gap-2">
                             {isUpdating ? (
-                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                              <span className="spinner" />
                             ) : (
                               <div className="relative group">
                                 <button
                                   id={`admin-action-${user.id}`}
-                                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-textMuted hover:text-text text-xs px-3 py-1.5 rounded-lg transition"
+                                  className="btn btn-ghost btn-sm"
                                 >
                                   Cambiar <ChevronDown className="w-3 h-3" />
                                 </button>
-                                <div className="absolute right-0 top-full mt-1 w-36 glass rounded-xl border border-white/10 shadow-xl z-20 hidden group-hover:block">
+                                <div className="absolute right-0 top-full mt-1 w-36 panel-card shadow-xl z-20 hidden group-hover:block">
                                   {(['activo', 'pendiente', 'revocado'] as AccessStatus[]).map(s => (
                                     <button
                                       key={s}
                                       id={`admin-set-${s}-${user.id}`}
                                       onClick={() => handleStatusChange(user, s)}
                                       disabled={status === s}
-                                      className={`w-full text-left px-4 py-2.5 text-xs transition hover:bg-white/5 first:rounded-t-xl last:rounded-b-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${
-                                        statusConfig[s].color.split(' ')[0]
-                                      }`}
+                                      className={`w-full text-left px-4 py-2.5 text-xs transition hover:bg-[var(--line)] first:rounded-t-xl last:rounded-b-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${statusConfig[s].tag}`}
                                     >
                                       {statusConfig[s].icon}
                                       {statusConfig[s].label}

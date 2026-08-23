@@ -103,15 +103,23 @@ export function useStats(
     const startDate = getStartDate(period);
     const startStr = startDate.toISOString().split('T')[0];
 
+    const activeAccounts = isAll
+      ? accounts.filter(a => a.status !== 'quemada')
+      : accounts;
+    const activeAccountIds = new Set(activeAccounts.map(a => a.id));
+    const effectiveTrades = isAll
+      ? trades.filter(t => activeAccountIds.has(t.trading_account_id))
+      : trades;
+
     // Period filter
-    const periodTrades = trades.filter(t => t.trade_date >= startStr);
+    const periodTrades = effectiveTrades.filter(t => t.trade_date >= startStr);
 
     // ── Balance evolution ────────────────────────────────────────────────────
     const initialBalance = isAll
-      ? accounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0)
+      ? activeAccounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0)
       : accounts.find(a => a.id === selectedAccountId)?.initial_balance ?? 0;
 
-    const sorted = [...trades].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
+    const sorted = [...effectiveTrades].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
     let running = initialBalance;
     const balancePoints: BalancePoint[] = [{ date: 'Inicio', balance: initialBalance, pnl: 0 }];
     
@@ -152,7 +160,7 @@ export function useStats(
     const worstTrade = withResult.length > 0 ? withResult.reduce((worst, t) => (t.result_amount! < worst.result_amount! ? t : worst)) : null;
 
     // ── Streak ───────────────────────────────────────────────────────────────
-    const reverseSorted = [...trades].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+    const reverseSorted = [...effectiveTrades].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
     let streakCount = 0;
     let streakType: 'ganando' | 'perdiendo' | 'neutro' = 'neutro';
     for (const t of reverseSorted) {
@@ -179,10 +187,10 @@ export function useStats(
     const prevQDate = new Date(now.getFullYear(), thisQuarter * 3 - 3, 1);
     const prevQStart = `${prevQDate.getFullYear()}-${String(prevQDate.getMonth() + 1).padStart(2, '0')}-01`;
 
-    const currentMonthPnl = trades.filter(t => t.trade_date >= thisMonthStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
-    const prevMonthPnl = trades.filter(t => t.trade_date >= prevMonthStart && t.trade_date < prevMonthEnd).reduce((s, t) => s + (t.result_amount ?? 0), 0);
-    const currentQuarterPnl = trades.filter(t => t.trade_date >= thisQStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
-    const prevQuarterPnl = trades.filter(t => t.trade_date >= prevQStart && t.trade_date < thisQStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const currentMonthPnl = effectiveTrades.filter(t => t.trade_date >= thisMonthStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const prevMonthPnl = effectiveTrades.filter(t => t.trade_date >= prevMonthStart && t.trade_date < prevMonthEnd).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const currentQuarterPnl = effectiveTrades.filter(t => t.trade_date >= thisQStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const prevQuarterPnl = effectiveTrades.filter(t => t.trade_date >= prevQStart && t.trade_date < thisQStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
 
     // Week comparison
     const dayOfWeek = now.getDay();
@@ -196,15 +204,15 @@ export function useStats(
     const nextWeekStartDate = new Date(thisWeekStartDate);
     nextWeekStartDate.setDate(thisWeekStartDate.getDate() + 7);
     const nextWeekStart = nextWeekStartDate.toISOString().split('T')[0];
-    const currentWeekPnl = trades.filter(t => t.trade_date >= thisWeekStart && t.trade_date < nextWeekStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
-    const prevWeekPnl = trades.filter(t => t.trade_date >= prevWeekStart && t.trade_date < thisWeekStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const currentWeekPnl = effectiveTrades.filter(t => t.trade_date >= thisWeekStart && t.trade_date < nextWeekStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const prevWeekPnl = effectiveTrades.filter(t => t.trade_date >= prevWeekStart && t.trade_date < thisWeekStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
 
     // Year comparison
     const thisYearStart = `${now.getFullYear()}-01-01`;
     const nextYearStart = `${now.getFullYear() + 1}-01-01`;
     const prevYearStart = `${now.getFullYear() - 1}-01-01`;
-    const currentYearPnl = trades.filter(t => t.trade_date >= thisYearStart && t.trade_date < nextYearStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
-    const prevYearPnl = trades.filter(t => t.trade_date >= prevYearStart && t.trade_date < thisYearStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const currentYearPnl = effectiveTrades.filter(t => t.trade_date >= thisYearStart && t.trade_date < nextYearStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
+    const prevYearPnl = effectiveTrades.filter(t => t.trade_date >= prevYearStart && t.trade_date < thisYearStart).reduce((s, t) => s + (t.result_amount ?? 0), 0);
 
     // ── Distributions ────────────────────────────────────────────────────────
     const byAsset = buildDistribution(periodTrades, t => t.asset);

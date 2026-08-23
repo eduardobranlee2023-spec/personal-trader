@@ -163,7 +163,10 @@ const CalendarPage: React.FC = () => {
                   onClick={() => setSelectedDay(dateStr)}
                   className={dayClass}
                 >
-                  <span className="cd-n">{day}</span>
+                  <span className="cd-n">
+                    {day}
+                    {dayTrades.length > 0 && <span className="cd-count">T:{dayTrades.length}</span>}
+                  </span>
                   {dayTrades.length > 0 && (
                     <span className="cd-v">
                       {stats.totalPnl > 0 ? '+' : ''}{fmtCurrency(stats.totalPnl)}

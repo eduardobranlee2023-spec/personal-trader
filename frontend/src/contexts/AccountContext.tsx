@@ -128,15 +128,17 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
+  const activeAccounts = accounts.filter(a => a.status !== 'quemada');
+
   const globalStats: AccountStats & { monthlyWithdrawals: number } = {
-    totalInitialBalance: accounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0),
-    totalCurrentBalance: accounts.reduce((s, a) => s + (a.current_balance ?? a.initial_balance ?? 0), 0),
-    totalPnl: accounts.reduce((s, a) => s + (a.total_pnl ?? 0), 0),
-    totalWins: accounts.reduce((s, a) => s + (a.total_wins ?? 0), 0),
-    totalLosses: accounts.reduce((s, a) => s + (a.total_losses ?? 0), 0),
-    totalTrades: accounts.reduce((s, a) => s + (a.trade_count ?? 0), 0),
-    totalWithdrawals: accounts.reduce((s, a) => s + (a.total_withdrawn ?? 0), 0),
-    monthlyWithdrawals: accounts.reduce((s, a) => s + ((a as any).monthly_withdrawn ?? 0), 0),
+    totalInitialBalance: activeAccounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0),
+    totalCurrentBalance: activeAccounts.reduce((s, a) => s + (a.current_balance ?? a.initial_balance ?? 0), 0),
+    totalPnl: activeAccounts.reduce((s, a) => s + (a.total_pnl ?? 0), 0),
+    totalWins: activeAccounts.reduce((s, a) => s + (a.total_wins ?? 0), 0),
+    totalLosses: activeAccounts.reduce((s, a) => s + (a.total_losses ?? 0), 0),
+    totalTrades: activeAccounts.reduce((s, a) => s + (a.trade_count ?? 0), 0),
+    totalWithdrawals: activeAccounts.reduce((s, a) => s + (a.total_withdrawn ?? 0), 0),
+    monthlyWithdrawals: activeAccounts.reduce((s, a) => s + ((a as any).monthly_withdrawn ?? 0), 0),
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId) ?? null;

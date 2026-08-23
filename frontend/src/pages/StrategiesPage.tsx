@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { useStrategies, useTrades } from '../hooks/useTrades';
 import type { Strategy } from '../hooks/useTrades';
-import { useStats } from '../hooks/useStats';
-import { useAccounts, ALL_ACCOUNTS_ID } from '../contexts/AccountContext';
+import { ALL_ACCOUNTS_ID } from '../contexts/AccountContext';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowUpDown, Plus, Edit2, Trash2, X, Target, BarChart2 } from 'lucide-react';
@@ -16,11 +15,7 @@ const fmtUSD = (n: number) =>
 const StrategiesPage: React.FC = () => {
   const { user } = useAuth();
   const { strategies, isLoading, refresh } = useStrategies();
-  const { accounts, selectedAccountId } = useAccounts();
-  
-  // We fetch all trades to calculate stats per strategy
-  const { trades } = useTrades({ accountId: selectedAccountId });
-  const stats = useStats(trades, accounts, selectedAccountId, 'ALL', ALL_ACCOUNTS_ID);
+  const { trades } = useTrades({ accountId: ALL_ACCOUNTS_ID });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStrategy, setEditingStrategy] = useState<Strategy | null>(null);
@@ -112,25 +107,18 @@ const StrategiesPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {strategies.map((strategy) => {
-            // Find stats for this specific strategy
-            const stratStats = stats.byStrategy.find(s => s.name === strategy.name);
-            const tradesCount = stratStats?.trades || 0;
-            const winRate = stratStats?.winRate || 0;
-            const pnl = stratStats?.pnl || 0;
-            
-            // Calculate avg RR specifically for this strategy if possible
-            // Note: useStats groups byStrategy but doesn't expose avg RR. We can compute it manually here:
             const strategyTrades = trades.filter(t => t.strategy_id === strategy.id);
-            let avgRR = 0;
-            let sumRR = 0;
-            let countRR = 0;
-            strategyTrades.forEach(t => {
-              if (t.risk_reward && !isNaN(parseFloat(t.risk_reward))) {
-                sumRR += parseFloat(t.risk_reward);
-                countRR++;
-              }
-            });
-            if (countRR > 0) avgRR = sumRR / countRR;
+            const tradesCount = strategyTrades.length;
+            const wins = strategyTrades.filter(t => t.status === 'ganada').length;
+            const winRate = tradesCount > 0 ? Math.round((wins / tradesCount) * 100) : 0;
+            const pnl = strategyTrades.reduce((sum, t) => sum + (t.result_amount ?? 0), 0);
+            const rrValues = strategyTrades
+              .map(t => t.risk_reward?.split(':')[1])
+              .filter((value): value is string => value !== undefined && !isNaN(parseFloat(value)))
+              .map(value => parseFloat(value));
+            const avgRR = rrValues.length > 0
+              ? rrValues.reduce((sum, value) => sum + value, 0) / rrValues.length
+              : 0;
 
             return (
               <div key={strategy.id} className="fund-card flex flex-col">

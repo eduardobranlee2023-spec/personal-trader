@@ -24,6 +24,7 @@ export interface Trade {
   investment_amount: number;
   result_amount: number | null;
   result_percentage: number | null;
+  commission_percentage: number | null;
   risk_reward: string | null;
   status: TradeStatus;
   notes: string | null;

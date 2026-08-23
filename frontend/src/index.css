@@ -945,6 +945,13 @@ select.input {
   color: var(--mut2);
 }
 
+.cal-day .cd-count {
+  margin-left: 7px;
+  font-size: 9px;
+  color: var(--acc);
+  opacity: 0.9;
+}
+
 .cal-day .cd-v {
   font-size: 10.5px;
   font-weight: 700;

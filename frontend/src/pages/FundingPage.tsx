@@ -138,13 +138,13 @@ const FundingPage: React.FC = () => {
     refresh();
   };
 
-  const roiPositive = metrics.netRoi >= 0;
+  const roiPositive = metrics.netRoi !== null && metrics.netRoi >= 0;
 
   const totalBought = investments.length;
   const approvedCount = investments.filter(i => i.status === 'aprobada').length;
-  const blownCount = investments.filter(i => i.status === 'rechazada').length;
+  const blownCount = fundedAccounts.filter(a => a.status === 'quemada').length;
   const approvedPct = totalBought > 0 ? ((approvedCount / totalBought) * 100).toFixed(1) : '0.0';
-  const blownPct = totalBought > 0 ? ((blownCount / totalBought) * 100).toFixed(1) : '0.0';
+  const blownPct = fundedAccounts.length > 0 ? ((blownCount / fundedAccounts.length) * 100).toFixed(1) : '0.0';
 
   return (
     <AppLayout>
@@ -180,7 +180,7 @@ const FundingPage: React.FC = () => {
           </div>
 
           {/* Summary cards */}
-          <div className="stat-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="stat-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
             <div className="stat-card">
               <div className="sc-top">
                 <span className="sc-lbl flex items-center gap-2"><Target className="w-3.5 h-3.5 text-primary" /> Total Invertido</span>
@@ -195,14 +195,23 @@ const FundingPage: React.FC = () => {
               <div className={`sc-val mono ${metrics.totalRecovered > 0 ? 'accent' : ''}`}>
                 {fmtUSD(metrics.totalRecovered)}
               </div>
-              <div className="sc-sub">P&L de cuentas fondeadas vinculadas</div>
+              <div className="sc-sub">Retiros procesados de cuentas vinculadas</div>
+            </div>
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-info" /> Ganancia neta disponible (post-comisión)</span>
+              </div>
+              <div className={`sc-val mono ${metrics.netAvailable >= 0 ? 'accent' : 'negative'}`}>
+                {metrics.netAvailable >= 0 ? '+' : ''}{fmtUSD(metrics.netAvailable)}
+              </div>
+              <div className="sc-sub">Proyección después de comisión</div>
             </div>
             <div className="stat-card">
               <div className="sc-top">
                 <span className="sc-lbl flex items-center gap-2"><BadgeDollarSign className={`w-3.5 h-3.5 ${roiPositive ? 'text-acc' : 'text-loss'}`} /> ROI de Fondeo</span>
               </div>
-              <div className={`sc-val mono ${roiPositive ? 'accent' : metrics.netRoi < 0 ? 'negative' : ''}`}>
-                {metrics.netRoi > 0 ? '+' : ''}{metrics.netRoi.toFixed(1)}%
+              <div className={`sc-val mono ${roiPositive ? 'accent' : metrics.netRoi !== null && metrics.netRoi < 0 ? 'negative' : ''}`}>
+                {metrics.netRoi === null ? 'N/A' : `${metrics.netRoi > 0 ? '+' : ''}${metrics.netRoi.toFixed(1)}%`}
               </div>
               <div className="sc-sub">Recuperado vs. invertido</div>
             </div>
@@ -404,7 +413,7 @@ const FundingPage: React.FC = () => {
           )}
         </>
       ) : (
-        <WithdrawalsSection />
+        <WithdrawalsSection onChanged={refresh} />
       )}
     </AppLayout>
   );

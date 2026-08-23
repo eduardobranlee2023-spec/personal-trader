@@ -22,7 +22,7 @@ const STATUS_STYLE: Record<WithdrawalStatus, { tag: string; label: string }> = {
   rechazado: { tag: 'tag tag-loss', label: 'Rechazado' },
 };
 
-export const WithdrawalsSection: React.FC = () => {
+export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<void> }> = ({ onChanged }) => {
   const { user } = useAuth();
   const { accounts, selectedAccountId } = useAccounts();
   const { withdrawals, metrics, isLoading, refresh } = useWithdrawals();
@@ -109,7 +109,8 @@ export const WithdrawalsSection: React.FC = () => {
         : await supabase.from('withdrawals').insert(payload);
 
       if (error) { setFormError(error.message); return; }
-      refresh();
+      await refresh();
+      await onChanged?.();
       closeForm();
     } finally {
       setIsSaving(false);
@@ -121,7 +122,8 @@ export const WithdrawalsSection: React.FC = () => {
     setDeletingId(id);
     await supabase.from('withdrawals').delete().eq('id', id);
     setDeletingId(null);
-    refresh();
+    await refresh();
+    await onChanged?.();
   };
 
   return (

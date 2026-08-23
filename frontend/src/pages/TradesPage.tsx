@@ -56,6 +56,12 @@ const TradesPage: React.FC = () => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
   };
 
+  const displayResult = (trade: Trade) => {
+    const result = trade.result_amount;
+    if (result == null || result <= 0 || !trade.commission_percentage) return result;
+    return result * (1 - trade.commission_percentage / 100);
+  };
+
   const hasFilters = assetFilter || dirFilter || statusFilter;
 
   return (
@@ -166,11 +172,11 @@ const TradesPage: React.FC = () => {
                     <td className="mono">{trade.risk_reward || '—'}</td>
                     <td>
                       <div className={
-                        (trade.result_amount ?? 0) > 0 ? 'pos' :
-                        (trade.result_amount ?? 0) < 0 ? 'neg' : 'mono'
+                        (displayResult(trade) ?? 0) > 0 ? 'pos' :
+                        (displayResult(trade) ?? 0) < 0 ? 'neg' : 'mono'
                       }>
                         {trade.result_amount != null
-                          ? <>{trade.result_amount > 0 ? '+' : ''}{fmt(trade.result_amount)}</>
+                          ? <>{(displayResult(trade) ?? 0) > 0 ? '+' : ''}{fmt(displayResult(trade))}</>
                           : '—'}
                       </div>
                       {trade.result_percentage != null && (
@@ -212,8 +218,9 @@ const TradesPage: React.FC = () => {
 
           <div className="md:hidden space-y-3">
             {trades.map(trade => {
-              const isWin = (trade.result_amount ?? 0) > 0;
-              const isLoss = (trade.result_amount ?? 0) < 0;
+              const displayedResult = displayResult(trade);
+              const isWin = (displayedResult ?? 0) > 0;
+              const isLoss = (displayedResult ?? 0) < 0;
               return (
                 <div key={trade.id} className={`fund-card ${isWin ? 'border-acc-soft' : isLoss ? 'border-[rgba(var(--red-rgb),0.35)]' : ''}`}>
                   <div className="flex items-start justify-between mb-3">
@@ -223,7 +230,7 @@ const TradesPage: React.FC = () => {
                     </div>
                     <div className={`sc-val ${isWin ? 'accent' : isLoss ? 'negative' : ''}`} style={{ fontSize: '1.1rem' }}>
                       {trade.result_amount != null
-                        ? <>{trade.result_amount > 0 ? '+' : ''}{fmt(trade.result_amount)}</>
+                        ? <>{(displayedResult ?? 0) > 0 ? '+' : ''}{fmt(displayedResult)}</>
                         : '—'}
                     </div>
                   </div>

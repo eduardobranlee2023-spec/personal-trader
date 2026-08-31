@@ -59,16 +59,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [tradingviewLink, setTradingviewLink] = useState(trade?.tradingview_link ?? '');
   const [strategyId, setStrategyId] = useState(trade?.strategy_id ?? '');
   const [investment, setInvestment] = useState(trade?.investment_amount ? String(trade.investment_amount) : '');
-  const [grossResultAmount, setGrossResultAmount] = useState(trade?.result_amount != null ? String(trade.result_amount) : '');
-  const [resultAmount, setResultAmount] = useState(() => {
-    const gross = trade?.result_amount;
-    const commission = trade?.commission_percentage ?? 0;
-    return gross != null && gross > 0 ? String(gross * (1 - commission / 100)) : gross != null ? String(gross) : '';
-  });
+  const [resultAmount, setResultAmount] = useState(trade?.result_amount != null ? String(trade.result_amount) : '');
   const [resultPercentage, setResultPercentage] = useState(trade?.result_percentage != null ? String(trade.result_percentage) : '');
-  const [commissionPercentage, setCommissionPercentage] = useState(
-    trade?.commission_percentage != null ? String(trade.commission_percentage) : ''
-  );
   const [riskReward, setRiskReward] = useState(trade?.risk_reward ?? '');
   const [status, setStatus] = useState<TradeStatus>(trade?.status ?? 'en curso');
   const [notes, setNotes] = useState(trade?.notes ?? '');
@@ -78,32 +70,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const selectedAccount = accounts.find(account => account.id === accountId);
-  const isFundedAccount = selectedAccount?.account_type === 'fondeada';
-
-  const calculateNetResult = (gross: string, commission: string, funded = isFundedAccount) => {
-    const value = parseFloat(gross);
-    const percentage = commission === '' ? 0 : Number(commission);
-    if (!funded || isNaN(value) || value <= 0) return gross;
-    return String(value * (1 - percentage / 100));
-  };
-
-  const handleResultChange = (value: string) => {
-    setGrossResultAmount(value);
-    setResultAmount(calculateNetResult(value, commissionPercentage));
-  };
-
-  const handleCommissionChange = (value: string) => {
-    setCommissionPercentage(value);
-    setResultAmount(calculateNetResult(grossResultAmount, value));
-  };
-
   const handleAccountChange = (value: string) => {
     setAccountId(value);
-    const account = accounts.find(item => item.id === value);
-    setResultAmount(account?.account_type === 'fondeada'
-      ? calculateNetResult(grossResultAmount, commissionPercentage, true)
-      : grossResultAmount);
   };
 
   // Auto-calculate percentage and status based on resultAmount
@@ -157,11 +125,9 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       entry_reason: entryReason.trim() || null,
       tradingview_link: tradingviewLink.trim() || null,
       investment_amount: investment !== '' ? parseFloat(investment) : 0,
-      result_amount: grossResultAmount !== '' ? parseFloat(grossResultAmount) : null,
+      result_amount: resultAmount !== '' ? parseFloat(resultAmount) : null,
       result_percentage: resultPercentage !== '' ? parseFloat(resultPercentage) : null,
-      commission_percentage: accounts.find(account => account.id === accountId)?.account_type === 'fondeada'
-        ? (commissionPercentage === '' ? null : parseInt(commissionPercentage, 10))
-        : null,
+      commission_percentage: null,
       risk_reward: riskReward.trim() || null,
       status,
       notes: notes.trim() || null,
@@ -256,19 +222,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
             </div>
             <div className="field">
               <label>Resultado en dinero ($) (opcional)</label>
-              <input type="number" step="0.01" value={resultAmount} onChange={e => handleResultChange(e.target.value)} placeholder="Ej: 300 o -100" className="input" />
+              <input type="number" step="0.01" value={resultAmount} onChange={e => setResultAmount(e.target.value)} placeholder="Ej: 300 o -100" className="input" />
             </div>
-            {isFundedAccount && (
-              <div className="field">
-                <label>Comisión (opcional)</label>
-                <select value={commissionPercentage} onChange={e => handleCommissionChange(e.target.value)} className="input">
-                  <option value="">Sin comisión (0%)</option>
-                  {Array.from({ length: 100 }, (_, index) => index + 1).map(value => (
-                    <option key={value} value={value}>{value}%</option>
-                  ))}
-                </select>
-              </div>
-            )}
             <div className="field">
               <label>Risk/Reward (RR) (opcional)</label>
               <input type="text" value={riskReward} onChange={e => setRiskReward(e.target.value)} placeholder="Ej: 1:3" className="input" />

@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useFundedInvestments } from '../hooks/useFundedInvestments';
 import type { FundedInvestment, InvestmentStatus } from '../hooks/useFundedInvestments';
-import { useTrades } from '../hooks/useTrades';
 import { useAccounts } from '../contexts/AccountContext';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,8 +21,7 @@ const STATUS_STYLE: Record<InvestmentStatus, { tag: string; label: string }> = {
 
 const FundingPage: React.FC = () => {
   const { user } = useAuth();
-  const { trades } = useTrades();
-  const { investments, metrics, isLoading, refresh } = useFundedInvestments(trades);
+  const { investments, metrics, isLoading, refresh } = useFundedInvestments();
   const { accounts } = useAccounts();
   const fundedAccounts = accounts.filter(a => a.account_type === 'fondeada');
 
@@ -199,12 +197,12 @@ const FundingPage: React.FC = () => {
             </div>
             <div className="stat-card">
               <div className="sc-top">
-                <span className="sc-lbl flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-info" /> Ganancia neta disponible (post-comisión)</span>
+                <span className="sc-lbl flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-info" /> Neto Recibido (post-comisión)</span>
               </div>
               <div className={`sc-val mono ${metrics.netAvailable >= 0 ? 'accent' : 'negative'}`}>
                 {metrics.netAvailable >= 0 ? '+' : ''}{fmtUSD(metrics.netAvailable)}
               </div>
-              <div className="sc-sub">Proyección después de comisión</div>
+              <div className="sc-sub">Retiros netos descontada comisión prop firm</div>
             </div>
             <div className="stat-card">
               <div className="sc-top">

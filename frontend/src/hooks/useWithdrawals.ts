@@ -12,7 +12,8 @@ export interface Withdrawal {
   user_id: string;
   trading_account_id: string;
   withdrawal_date: string;
-  amount: number;
+  amount: number;               // monto BRUTO solicitado
+  commission_percentage: number | null; // % retenido por la prop firm
   method: WithdrawalMethod;
   method_details: string | null;
   status: WithdrawalStatus;
@@ -20,12 +21,18 @@ export interface Withdrawal {
   created_at: string;
 }
 
+/** Calcula el monto neto que el trader efectivamente recibe */
+export const getNetAmount = (w: Pick<Withdrawal, 'amount' | 'commission_percentage'>): number => {
+  const pct = w.commission_percentage ?? 0;
+  return w.amount * (1 - pct / 100);
+};
+
 export interface WithdrawalMetrics {
-  totalWithdrawn: number;
+  totalWithdrawn: number;       // suma de net_amount de retiros procesados
   netProfit: number;
-  withdrawnPct: number | null; // null represents N/A
+  withdrawnPct: number | null;
   reinvestedPct: number | null;
-  averageWithdrawal: number;
+  averageWithdrawal: number;    // promedio por net_amount
   frequencyDays: number | null;
   totalWithdrawalsCount: number;
   methodDistribution: Record<WithdrawalMethod, number>;
@@ -68,7 +75,8 @@ export function useWithdrawals() {
     const isAll = selectedAccountId === ALL_ACCOUNTS_ID;
     
     const processedWithdrawals = withdrawals.filter(w => w.status === 'procesado');
-    const totalWithdrawn = processedWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+    // totalWithdrawn usa net_amount (lo que el trader efectivamente recibe en mano)
+    const totalWithdrawn = processedWithdrawals.reduce((sum, w) => sum + getNetAmount(w), 0);
     const totalWithdrawalsCount = processedWithdrawals.length;
     
     let netProfit = 0;
@@ -91,7 +99,7 @@ export function useWithdrawals() {
       frequencyDays = diffDays / (totalWithdrawalsCount - 1);
     }
 
-    // Method Distribution
+    // Method Distribution — usa net_amount
     const methodDistribution: Record<WithdrawalMethod, number> = {
       billetera_virtual: 0,
       transferencia_bancaria: 0,
@@ -99,7 +107,7 @@ export function useWithdrawals() {
       otro: 0
     };
     processedWithdrawals.forEach(w => {
-      methodDistribution[w.method] += w.amount; // Distribute by amount instead of count for better visualization
+      methodDistribution[w.method] += getNetAmount(w);
     });
 
     // By Account breakdown (only relevant for ALL)

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, ALL_ACCOUNTS_ID } from '../../contexts/AccountContext';
-import { useWithdrawals } from '../../hooks/useWithdrawals';
+import { useWithdrawals, getNetAmount } from '../../hooks/useWithdrawals';
 import type { Withdrawal, WithdrawalMethod, WithdrawalStatus } from '../../hooks/useWithdrawals';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit2, Trash2, X, AlertCircle, ArrowDownToLine, TrendingUp, PiggyBank, Calendar, PieChart } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, AlertCircle, ArrowDownToLine, TrendingUp, PiggyBank, Calendar, PieChart, Info } from 'lucide-react';
 
 const fmtUSD = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
@@ -22,6 +22,28 @@ const STATUS_STYLE: Record<WithdrawalStatus, { tag: string; label: string }> = {
   rechazado: { tag: 'tag tag-loss', label: 'Rechazado' },
 };
 
+interface FormData {
+  trading_account_id: string;
+  withdrawal_date: string;
+  amount: string;
+  commission_percentage: string;
+  method: WithdrawalMethod;
+  method_details: string;
+  status: WithdrawalStatus;
+  notes: string;
+}
+
+const EMPTY_FORM: FormData = {
+  trading_account_id: '',
+  withdrawal_date: new Date().toISOString().split('T')[0],
+  amount: '',
+  commission_percentage: '',
+  method: 'billetera_virtual',
+  method_details: '',
+  status: 'procesado',
+  notes: ''
+};
+
 export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<void> }> = ({ onChanged }) => {
   const { user } = useAuth();
   const { accounts, selectedAccountId } = useAccounts();
@@ -32,29 +54,23 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWithdrawal, setEditingWithdrawal] = useState<Withdrawal | null>(null);
-  const [formData, setFormData] = useState({
-    trading_account_id: '',
-    withdrawal_date: new Date().toISOString().split('T')[0],
-    amount: '',
-    method: 'billetera_virtual' as WithdrawalMethod,
-    method_details: '',
-    status: 'procesado' as WithdrawalStatus,
-    notes: ''
-  });
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // ── Preview en tiempo real ────────────────────────────────────────────────
+  const previewGross = parseFloat(formData.amount) || 0;
+  const previewPct = parseInt(formData.commission_percentage, 10) || 0;
+  const previewNet = previewGross > 0 ? previewGross * (1 - previewPct / 100) : 0;
+  const hasCommission = previewGross > 0 && previewPct > 0;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const openNew = () => {
     setEditingWithdrawal(null);
     setFormData({
-      trading_account_id: selectedAccountId !== ALL_ACCOUNTS_ID ? selectedAccountId : (fundedAccounts[0]?.id || ''),
-      withdrawal_date: new Date().toISOString().split('T')[0],
-      amount: '',
-      method: 'billetera_virtual',
-      method_details: '',
-      status: 'procesado',
-      notes: ''
+      ...EMPTY_FORM,
+      trading_account_id: selectedAccountId !== ALL_ACCOUNTS_ID ? selectedAccountId : (fundedAccounts[0]?.id || accounts[0]?.id || ''),
     });
     setFormError('');
     setIsFormOpen(true);
@@ -66,6 +82,7 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
       trading_account_id: w.trading_account_id,
       withdrawal_date: w.withdrawal_date,
       amount: w.amount.toString(),
+      commission_percentage: w.commission_percentage != null ? w.commission_percentage.toString() : '',
       method: w.method,
       method_details: w.method_details || '',
       status: w.status,
@@ -92,11 +109,15 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
     setIsSaving(true);
     setFormError('');
 
+    const commissionRaw = formData.commission_percentage.trim();
+    const commissionValue = commissionRaw === '' ? null : parseInt(commissionRaw, 10);
+
     const payload = {
       user_id: user.id,
       trading_account_id: formData.trading_account_id,
       withdrawal_date: formData.withdrawal_date,
       amount: parseFloat(formData.amount),
+      commission_percentage: commissionValue,
       method: formData.method,
       method_details: (formData.method === 'billetera_virtual' || formData.method === 'otro' || formData.method === 'cripto') ? formData.method_details : null,
       status: formData.status,
@@ -143,7 +164,7 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
       <div className="stat-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="stat-card">
           <div className="sc-top">
-            <span className="sc-lbl flex items-center gap-2"><ArrowDownToLine className="w-3.5 h-3.5 text-acc" /> Total Retirado</span>
+            <span className="sc-lbl flex items-center gap-2"><ArrowDownToLine className="w-3.5 h-3.5 text-acc" /> Total Recibido (neto)</span>
           </div>
           <div className="sc-val accent mono">{fmtUSD(metrics.totalWithdrawn)}</div>
           <div className="sc-sub">{metrics.totalWithdrawalsCount} retiros procesados</div>
@@ -270,11 +291,23 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
                   {withdrawals.map(w => {
                     const style = STATUS_STYLE[w.status];
                     const accountName = accounts.find(a => a.id === w.trading_account_id)?.name || '—';
+                    const netAmt = getNetAmount(w);
+                    const hasComm = w.commission_percentage != null && w.commission_percentage > 0;
                     return (
                       <tr key={w.id}>
                         <td className="mono">{w.withdrawal_date}</td>
                         <td className="sym">{accountName}</td>
-                        <td className="pos">{fmtUSD(w.amount)}</td>
+                        <td>
+                          {hasComm ? (
+                            <div>
+                              <div className="mono text-textMuted text-xs line-through">{fmtUSD(w.amount)} bruto</div>
+                              <div className="mono pos font-semibold">{fmtUSD(netAmt)} neto</div>
+                              <div className="sc-sub text-[10px]">{w.commission_percentage}% comisión prop firm</div>
+                            </div>
+                          ) : (
+                            <span className="mono pos">{fmtUSD(w.amount)}</span>
+                          )}
+                        </td>
                         <td>
                           <div>{METHOD_LABELS[w.method]}</div>
                           {w.method_details && <div className="sc-sub">{w.method_details}</div>}
@@ -338,11 +371,12 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
 
               <div className="m-grid">
                 <div className="field">
-                  <label>Monto (USD) *</label>
+                  <label>Monto Bruto (USD) *</label>
                   <input type="number" step="0.01" required value={formData.amount}
                     onChange={e => setFormData({ ...formData, amount: e.target.value })}
                     className="input mono text-acc"
                     placeholder="0" />
+                  <p className="sc-sub">Monto solicitado / aprobado por la prop firm</p>
                 </div>
                 <div className="field">
                   <label>Fecha *</label>
@@ -351,6 +385,64 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
                     className="input" />
                 </div>
               </div>
+
+              {/* Comisión prop firm */}
+              <div className="field">
+                <label className="flex items-center gap-1.5">
+                  Comisión de la prop firm (%) 
+                  <span className="text-textMuted font-normal text-xs">(opcional)</span>
+                </label>
+                <select
+                  value={formData.commission_percentage}
+                  onChange={e => setFormData({ ...formData, commission_percentage: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Sin comisión (0% — trader se queda todo)</option>
+                  {Array.from({ length: 100 }, (_, i) => i + 1).map(v => (
+                    <option key={v} value={v}>{v}% — prop firm retiene, trader recibe {100 - v}%</option>
+                  ))}
+                </select>
+                <p className="sc-sub flex items-center gap-1">
+                  <Info className="w-3 h-3 shrink-0" />
+                  Typical splits: 70/30, 80/20, 90/10. Dejá vacío si no aplica o ya es el neto.
+                </p>
+              </div>
+
+              {/* Preview en tiempo real */}
+              {previewGross > 0 && (
+                <div
+                  className="rounded-lg p-3 border"
+                  style={{
+                    background: hasCommission
+                      ? 'color-mix(in srgb, var(--acc) 8%, var(--surface))'
+                      : 'color-mix(in srgb, var(--primary) 6%, var(--surface))',
+                    borderColor: hasCommission ? 'color-mix(in srgb, var(--acc) 25%, transparent)' : 'var(--line)',
+                  }}
+                >
+                  {hasCommission ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-textMuted">
+                        <span>Bruto solicitado</span>
+                        <span className="mono">{fmtUSD(previewGross)}</span>
+                      </div>
+                      <div className="flex justify-between text-textMuted">
+                        <span>Comisión prop firm ({previewPct}%)</span>
+                        <span className="mono text-loss">− {fmtUSD(previewGross * previewPct / 100)}</span>
+                      </div>
+                      <div className="h-px" style={{ background: 'var(--line)', margin: '4px 0' }} />
+                      <div className="flex justify-between font-bold text-base">
+                        <span className="text-text">Vas a recibir</span>
+                        <span className="mono accent">US$ {previewNet.toFixed(0)} neto</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm font-medium">
+                      <span className="text-textMuted">Vas a recibir</span>
+                      <span className="mono accent">US$ {previewGross.toFixed(0)} neto</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="field">
                 <label>Método *</label>

@@ -5,7 +5,7 @@ import { useAccounts } from '../../contexts/AccountContext';
 import { useStrategies } from '../../hooks/useTrades';
 import type { Trade, TradeSession, TradeDirection, TradeStatus } from '../../hooks/useTrades';
 import type { FundedPhase } from '../../contexts/AccountContext';
-import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2 } from 'lucide-react';
+import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2, Search } from 'lucide-react';
 
 type Props = {
   trade?: Trade | null;
@@ -22,8 +22,7 @@ const SESSIONS: { value: TradeSession; label: string }[] = [
   { value: 'overlap', label: 'Overlap (LON/NYC)' },
 ];
 
-/** Prioridad de ordenamiento por status */
-const STATUS_ORDER: Record<string, number> = { activa: 0, pausada: 1, pasada: 2, quemada: 3 };
+
 
 const PHASE_LABEL: Record<NonNullable<FundedPhase>, string> = {
   fase_1: 'Fase 1',
@@ -35,11 +34,12 @@ const fmtBalance = (n: number, currency: string) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
 
 /** Genera el label completo de una cuenta para el selector */
-const accountOptionLabel = (a: { name: string; account_type: string; funded_phase?: FundedPhase | null; current_balance?: number; initial_balance?: number | null; currency: string }) => {
+const accountOptionLabel = (a: { name: string; account_type: string; funded_phase?: FundedPhase | null; current_balance?: number; initial_balance?: number | null; currency: string; status: string }) => {
   const balance = a.current_balance ?? a.initial_balance ?? null;
   const phase = a.account_type === 'fondeada' && a.funded_phase ? ` · ${PHASE_LABEL[a.funded_phase]}` : '';
+  const statusStr = a.status ? ` · ${a.status.charAt(0).toUpperCase() + a.status.slice(1)}` : '';
   const balStr = balance != null ? ` — ${fmtBalance(balance, a.currency)}` : '';
-  return `${a.name}${phase}${balStr}`;
+  return `${a.name}${statusStr}${phase}${balStr}`;
 };
 
 const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) => {
@@ -48,7 +48,10 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const { strategies } = useStrategies();
   const isEdit = !!trade;
 
-  const [accountId, setAccountId] = useState(trade?.trading_account_id ?? (accounts.length > 0 ? accounts[0].id : ''));
+  const [accountIds, setAccountIds] = useState<string[]>(trade ? [trade.trading_account_id] : (accounts.length > 0 ? [accounts[0].id] : []));
+  const [accountSearch, setAccountSearch] = useState('');
+  const [investment, setInvestment] = useState(trade?.investment_amount ? String(trade.investment_amount) : '');
+  const [resultAmount, setResultAmount] = useState(trade?.result_amount != null ? String(trade.result_amount) : '');
   const [tradeDate, setTradeDate] = useState(trade?.trade_date ?? new Date().toISOString().split('T')[0]);
   const [asset, setAsset] = useState(trade?.asset ?? '');
   const [session, setSession] = useState<TradeSession>(trade?.session ?? 'nyc');
@@ -58,9 +61,6 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [entryReason, setEntryReason] = useState(trade?.entry_reason ?? '');
   const [tradingviewLink, setTradingviewLink] = useState(trade?.tradingview_link ?? '');
   const [strategyId, setStrategyId] = useState(trade?.strategy_id ?? '');
-  const [investment, setInvestment] = useState(trade?.investment_amount ? String(trade.investment_amount) : '');
-  const [resultAmount, setResultAmount] = useState(trade?.result_amount != null ? String(trade.result_amount) : '');
-  const [resultPercentage, setResultPercentage] = useState(trade?.result_percentage != null ? String(trade.result_percentage) : '');
   const [riskReward, setRiskReward] = useState(trade?.risk_reward ?? '');
   const [status, setStatus] = useState<TradeStatus>(trade?.status ?? 'en curso');
   const [notes, setNotes] = useState(trade?.notes ?? '');
@@ -70,33 +70,13 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleAccountChange = (value: string) => {
-    setAccountId(value);
-  };
-
-  // Auto-calculate percentage and status based on resultAmount
-  useEffect(() => {
-    if (resultAmount !== '') {
-      const val = parseFloat(resultAmount);
-      // Auto-set status
-      if (val > 0) setStatus('ganada');
-      else if (val < 0) setStatus('perdida');
-      else if (val === 0) setStatus('breakeven');
-
-      // Auto-calculate percentage if we know the account's initial balance
-      const account = accounts.find(a => a.id === accountId);
-      if (account && account.initial_balance && !trade) {
-        const pct = (val / account.initial_balance) * 100;
-        setResultPercentage(pct.toFixed(2));
-      }
-    } else {
-      if (!trade) setStatus('en curso');
-    }
-  }, [resultAmount, accountId, accounts, trade]);
+  // Global auto-set status based on total/average? 
+  // No, the prompt says status is shared but individual per row if result is given.
+  // We remove the old useEffect and handle calculation on save.
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accountId) { setError('Debe seleccionar una cuenta.'); return; }
+    if (accountIds.length === 0) { setError('Debe seleccionar al menos una cuenta.'); return; }
     if (!asset.trim()) { setError('El activo es obligatorio.'); return; }
 
     if (tradingviewLink && !tradingviewLink.startsWith('http')) {
@@ -112,9 +92,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
     setIsSaving(true);
     setError('');
 
-    const payload = {
+    const basePayload = {
       user_id: user!.id,
-      trading_account_id: accountId,
       strategy_id: strategyId || null,
       trade_date: tradeDate,
       asset: asset.trim().toUpperCase(),
@@ -125,19 +104,52 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       entry_reason: entryReason.trim() || null,
       tradingview_link: tradingviewLink.trim() || null,
       investment_amount: investment !== '' ? parseFloat(investment) : 0,
-      result_amount: resultAmount !== '' ? parseFloat(resultAmount) : null,
-      result_percentage: resultPercentage !== '' ? parseFloat(resultPercentage) : null,
       commission_percentage: null,
       risk_reward: riskReward.trim() || null,
-      status,
       notes: notes.trim() || null,
+    };
+
+    const getAccountSpecificData = (accId: string) => {
+      const resVal = resultAmount !== '' ? parseFloat(resultAmount) : null;
+      
+      let finalStatus: TradeStatus = status;
+      let result_percentage: number | null = null;
+      
+      if (resVal !== null) {
+        if (resVal > 0) finalStatus = 'ganada';
+        else if (resVal < 0) finalStatus = 'perdida';
+        else if (resVal === 0) finalStatus = 'breakeven';
+
+        const account = accounts.find(a => a.id === accId);
+        if (account && account.initial_balance && !isEdit) {
+           const pct = (resVal / account.initial_balance) * 100;
+           result_percentage = parseFloat(pct.toFixed(2));
+        } else if (isEdit && trade?.result_percentage != null) {
+           result_percentage = trade.result_percentage;
+        }
+      }
+      
+      return {
+        trading_account_id: accId,
+        result_amount: resVal,
+        result_percentage,
+        status: finalStatus
+      };
     };
 
     let err;
     if (isEdit) {
+      // Edit only edits the single row
+      const payload = { ...basePayload, ...getAccountSpecificData(accountIds[0]) };
       ({ error: err } = await supabase.from('trades').update(payload).eq('id', trade!.id));
     } else {
-      ({ error: err } = await supabase.from('trades').insert(payload));
+      const trade_group_id = accountIds.length > 1 ? crypto.randomUUID() : null;
+      const payloads = accountIds.map(accId => ({
+        ...basePayload,
+        ...getAccountSpecificData(accId),
+        trade_group_id
+      }));
+      ({ error: err } = await supabase.from('trades').insert(payloads));
     }
 
     if (err) setError(err.message);
@@ -152,6 +164,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
     if (err) { setError(err.message); setIsDeleting(false); }
     else { onSaved(); onClose(); }
   };
+
+  const filteredAccounts = accounts.filter(a => a.name.toLowerCase().includes(accountSearch.toLowerCase()));
 
   return (
     <div className="modal" onClick={onClose}>
@@ -169,18 +183,62 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
           )}
 
           <div className="m-grid">
-            <div className="field">
-              <label>Cuenta *</label>
-              <select value={accountId} onChange={e => handleAccountChange(e.target.value)} className="input">
-                {[...accounts]
-                  .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9))
-                  .map(a => (
+            {isEdit ? (
+              <div className="field col-span-full">
+                <label>Cuenta (Edición individual) *</label>
+                <select 
+                  value={accountIds[0] || ''} 
+                  onChange={e => setAccountIds([e.target.value])} 
+                  className="input"
+                >
+                  {accounts.map(a => (
                     <option key={a.id} value={a.id}>
                       {accountOptionLabel(a)}
                     </option>
                   ))}
-              </select>
-            </div>
+                </select>
+              </div>
+            ) : (
+              <div className="field col-span-full">
+                <label>Cuentas (seleccione al menos una) *</label>
+                <div className="relative mb-2">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    type="search"
+                    value={accountSearch}
+                    onChange={e => setAccountSearch(e.target.value)}
+                    placeholder="Buscar cuenta por nombre..."
+                    className="input text-sm"
+                    style={{ paddingLeft: '2.5rem' }}
+                  />
+                </div>
+                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto p-2 border border-white/10 rounded-lg bg-black/20">
+                  {filteredAccounts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-white/50">No se encontraron cuentas</div>
+                  ) : (
+                    filteredAccounts.map(a => {
+                      const isChecked = accountIds.includes(a.id);
+                      return (
+                        <div key={a.id} className="flex flex-col gap-2 p-2 border border-white/5 rounded-lg bg-white/5 transition-colors hover:bg-white/10">
+                          <label className="flex items-center gap-2 cursor-pointer w-full">
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked} 
+                              onChange={(e) => {
+                                if (e.target.checked) setAccountIds([...accountIds, a.id]);
+                                else setAccountIds(accountIds.filter(id => id !== a.id));
+                              }} 
+                              className="checkbox" 
+                            />
+                            <span className="text-sm font-medium select-none">{accountOptionLabel(a)}</span>
+                          </label>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
             <div className="field">
               <label>Fecha *</label>
               <input type="date" value={tradeDate} onChange={e => setTradeDate(e.target.value)} className="input" />
@@ -216,6 +274,7 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
                 {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            
             <div className="field">
               <label>Riesgo / Inversión (opcional)</label>
               <input type="number" step="0.01" value={investment} onChange={e => setInvestment(e.target.value)} placeholder="Ej: 100" className="input" />
@@ -224,6 +283,7 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
               <label>Resultado en dinero ($) (opcional)</label>
               <input type="number" step="0.01" value={resultAmount} onChange={e => setResultAmount(e.target.value)} placeholder="Ej: 300 o -100" className="input" />
             </div>
+
             <div className="field">
               <label>Risk/Reward (RR) (opcional)</label>
               <input type="text" value={riskReward} onChange={e => setRiskReward(e.target.value)} placeholder="Ej: 1:3" className="input" />

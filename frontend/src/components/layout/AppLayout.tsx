@@ -125,6 +125,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         <div className="min-w-0">
                           <div className="truncate font-medium">{acc.name}</div>
                           <div className="flex items-center gap-1.5 text-xs text-textMuted truncate mt-0.5">
+                            <span className="capitalize">{acc.status}</span>
+                            <span>·</span>
                             {acc.account_type === 'fondeada' && acc.funded_phase ? (
                               <span className={phaseTag[acc.funded_phase]}>{acc.funded_phase.replace('_', ' ')}</span>
                             ) : (

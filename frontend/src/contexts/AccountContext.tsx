@@ -76,7 +76,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .from('trading_accounts')
       .select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
+      .order('name', { ascending: true });
 
     if (accsErr || !accs) { setIsLoading(false); return; }
 
@@ -121,6 +121,8 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         monthly_withdrawn,
       };
     });
+
+    enriched.sort((a, b) => a.name.localeCompare(b.name));
 
     setAccounts(enriched);
     setIsLoading(false);

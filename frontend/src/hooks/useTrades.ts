@@ -10,6 +10,7 @@ export type TradeStatus = 'ganada' | 'perdida' | 'breakeven' | 'en curso';
 
 export interface Trade {
   id: string;
+  trade_group_id: string | null;
   user_id: string;
   trading_account_id: string;
   strategy_id: string | null;

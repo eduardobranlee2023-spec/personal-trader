@@ -61,7 +61,14 @@ const Dashboard: React.FC = () => {
             <span className="sc-lbl">Capital actual</span>
           </div>
           <div className="sc-val accent">{fmt(stats.totalCurrentBalance)}</div>
-          <div className="sc-sub">Inicial: {fmt(stats.totalInitialBalance)}</div>
+          <div className="sc-sub mb-2">Inicial: {fmt(stats.totalInitialBalance)}</div>
+          {isAll && (
+            <div className="flex flex-col gap-1 text-xs border-t border-[var(--line)] pt-2">
+              <div className="flex justify-between"><span className="text-textMuted">Fondeado:</span> <span className="text-text">{fmt(globalStats.fundedCapital)}</span></div>
+              <div className="flex justify-between"><span className="text-textMuted">Challenge:</span> <span className="text-text">{fmt(globalStats.challengeCapital)}</span></div>
+              <div className="flex justify-between"><span className="text-textMuted">Quemadas:</span> <span className="text-loss">{fmt(globalStats.blownCapital)}</span></div>
+            </div>
+          )}
         </div>
 
         <div className={`stat-card ${isPositive ? 'glow-green' : 'glow-red'}`}>

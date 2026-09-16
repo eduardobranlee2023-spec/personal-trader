@@ -218,7 +218,14 @@ const FundingPage: React.FC = () => {
                 <span className="sc-lbl flex items-center gap-2"><TrendingDown className="w-3.5 h-3.5 text-loss" /> Tasa de Aprobación</span>
               </div>
               <div className="sc-val accent mono">{approvedPct}%</div>
-              <div className="sc-sub">Quemadas: <span className="text-loss mono">{blownPct}%</span></div>
+              <div className="sc-sub">{approvedCount} de {totalBought} evaluación{totalBought !== 1 ? 'es' : ''} aprobada{approvedCount !== 1 ? 's' : ''}</div>
+            </div>
+            <div className="stat-card">
+              <div className="sc-top">
+                <span className="sc-lbl flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5 text-loss" /> Cuentas Quemadas</span>
+              </div>
+              <div className="sc-val negative mono">{blownPct}%</div>
+              <div className="sc-sub">{blownCount} de {fundedAccounts.length} cuenta{fundedAccounts.length !== 1 ? 's' : ''} quemada{blownCount !== 1 ? 's' : ''}</div>
             </div>
           </div>
 

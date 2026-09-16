@@ -58,8 +58,9 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const { strategies } = useStrategies();
   const isEdit = !!trade;
 
+  const availableNewAccounts = accounts.filter(a => a.status !== 'quemada');
   const [accountIds, setAccountIds] = useState<string[]>(
-    trade ? [trade.trading_account_id] : accounts.length > 0 ? [accounts[0].id] : []
+    trade ? [trade.trading_account_id] : availableNewAccounts.length > 0 ? [availableNewAccounts[0].id] : []
   );
   const [accountSearch, setAccountSearch] = useState('');
 
@@ -211,7 +212,7 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
     }
   };
 
-  const filteredAccounts = accounts.filter(a =>
+  const filteredAccounts = (isEdit ? accounts : availableNewAccounts).filter(a =>
     a.name.toLowerCase().includes(accountSearch.toLowerCase())
   );
 

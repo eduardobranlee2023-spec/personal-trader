@@ -17,6 +17,7 @@ export type TradingAccount = {
   status: AccountStatus;
   funded_phase: FundedPhase;
   created_at: string;
+  max_drawdown_percentage: number | null;
   // computed
   current_balance?: number;
   total_pnl?: number;
@@ -25,6 +26,7 @@ export type TradingAccount = {
   trade_count?: number;
   total_withdrawn?: number;
 };
+
 
 export type AccountStats = {
   totalInitialBalance: number;
@@ -107,11 +109,12 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       
       const total_pnl = accTrades.reduce((sum, t) => sum + (t.result_amount ?? 0), 0);
-      const current_balance = (acc.initial_balance ?? 0) + total_pnl;
-      const total_wins = accTrades.filter(t => t.status === 'ganada').length;
-      const total_losses = accTrades.filter(t => t.status === 'perdida').length;
       const total_withdrawn = accWithdrawals.reduce((sum, w) => sum + (w.amount ?? 0), 0);
       const monthly_withdrawn = monthlyWithdrawals.reduce((sum, w) => sum + (w.amount ?? 0), 0);
+      const current_balance = (acc.initial_balance ?? 0) + total_pnl - total_withdrawn;
+      const total_wins = accTrades.filter(t => t.status === 'ganada').length;
+      const total_losses = accTrades.filter(t => t.status === 'perdida').length;
+
 
       return {
         ...acc,

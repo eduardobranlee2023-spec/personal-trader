@@ -41,6 +41,9 @@ const AccountForm: React.FC<Props> = ({ account, onClose, onSaved }) => {
   );
   const [status, setStatus] = useState<AccountStatus>(account?.status ?? 'activa');
   const [fundedPhase, setFundedPhase] = useState<FundedPhase>(account?.funded_phase ?? null);
+  const [maxDrawdownPct, setMaxDrawdownPct] = useState<string>(
+    account?.max_drawdown_percentage != null ? String(account.max_drawdown_percentage) : ''
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -61,6 +64,9 @@ const AccountForm: React.FC<Props> = ({ account, onClose, onSaved }) => {
       initial_balance: initialBalance !== '' ? parseFloat(initialBalance) : null,
       status,
       funded_phase: type === 'fondeada' ? fundedPhase : null,
+      max_drawdown_percentage: type === 'fondeada' && maxDrawdownPct !== ''
+        ? parseFloat(maxDrawdownPct)
+        : null,
     };
 
     let err;
@@ -168,26 +174,51 @@ const AccountForm: React.FC<Props> = ({ account, onClose, onSaved }) => {
           </div>
 
           {type === 'fondeada' && (
-            <div className="field">
-              <label>Fase del challenge</label>
-              <div className="flex flex-col gap-2">
-                {phaseOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setFundedPhase(opt.value)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all duration-150 ${
-                      fundedPhase === opt.value
-                        ? 'border-[var(--line2)] bg-[var(--card)]'
-                        : 'border-[var(--line)] bg-transparent hover:border-[var(--line2)]'
-                    }`}
-                  >
-                    <span className={`tag ${opt.dot} shrink-0`} />
-                    <span className={fundedPhase === opt.value ? opt.color : 'text-textMuted'}>{opt.label}</span>
-                  </button>
-                ))}
+            <>
+              <div className="field">
+                <label>Fase del challenge</label>
+                <div className="flex flex-col gap-2">
+                  {phaseOptions.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFundedPhase(opt.value)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all duration-150 ${
+                        fundedPhase === opt.value
+                          ? 'border-[var(--line2)] bg-[var(--card)]'
+                          : 'border-[var(--line)] bg-transparent hover:border-[var(--line2)]'
+                      }`}
+                    >
+                      <span className={`tag ${opt.dot} shrink-0`} />
+                      <span className={fundedPhase === opt.value ? opt.color : 'text-textMuted'}>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              <div className="field">
+                <label>
+                  Drawdown máximo permitido
+                  <span className="text-textMuted font-normal ml-1 text-xs">(opcional · límite de tu prop firm)</span>
+                </label>
+                <div className="input-icon-wrap">
+                  <span className="input-icon">%</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={maxDrawdownPct}
+                    onChange={e => setMaxDrawdownPct(e.target.value)}
+                    placeholder="Ej: 10"
+                    className="input"
+                  />
+                </div>
+                <p className="text-xs text-textMuted mt-1">
+                  Si lo configurás, verás en estadísticas cuánto % de tu límite estás usando.
+                </p>
+              </div>
+            </>
           )}
 
           <div className="field">

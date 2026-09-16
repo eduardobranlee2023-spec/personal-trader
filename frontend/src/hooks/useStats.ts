@@ -10,6 +10,15 @@ export interface BalancePoint { date: string; balance: number; pnl: number; }
 
 export interface DistributionItem { name: string; trades: number; wins: number; losses: number; pnl: number; winRate: number; }
 
+export interface DrawdownResult {
+  maxDD: number;           // % máximo histórico
+  currentDD: number;       // % desde el último pico hasta hoy
+  maxDDAmount: number;     // $ en el mismo punto que el peor %
+  currentDDAmount: number; // $ desde el último pico hasta hoy
+  peakBalance: number;
+  currentBalance: number;
+}
+
 export interface StatsResult {
   // Period trades
   periodTrades: Trade[];
@@ -49,9 +58,56 @@ export interface StatsResult {
   prevWeekPnl: number;
   currentYearPnl: number;
   prevYearPnl: number;
+  // Drawdown
+  drawdown: DrawdownResult;
+  maxDrawdownLimit: number | null;
+  accountDrawdownLimits: { account: TradingAccount; dd: DrawdownResult }[];
+  // ── Nuevas métricas (Prompt 32) ──────────────────────────────────────────
+  profitFactor: number | null;          // null = sin pérdidas (∞)
+  expectancy: number | null;            // $ esperado por trade
+  bestWinStreak: number;               // racha ganadora récord histórica
+  worstLossStreak: number;             // racha perdedora récord histórica
+  recoveryFactor: number | null;       // PnL / maxDDAmount (null si DD=0)
+  winningDays: number;
+  losingDays: number;
+  bestMonth: { label: string; pnl: number } | null;
+  worstMonth: { label: string; pnl: number } | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Calcula Max Drawdown y Drawdown actual sobre una serie de trades ordenados.
+ *  El monto en $ (maxDDAmount) se captura en el MISMO punto donde ocurre el
+ *  peor porcentaje — no se recalcula con el pico/valle finales. */
+export function calcDrawdown(
+  initialBalance: number,
+  trades: { trade_date: string; result_amount: number | null }[]
+): DrawdownResult {
+  if (trades.length === 0) {
+    return { maxDD: 0, currentDD: 0, maxDDAmount: 0, currentDDAmount: 0, peakBalance: initialBalance, currentBalance: initialBalance };
+  }
+  const sorted = [...trades].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
+  let peak = initialBalance;
+  let running = initialBalance;
+  let maxDD = 0;
+  let maxDDAmount = 0;
+
+  for (const t of sorted) {
+    running += t.result_amount ?? 0;
+    if (running > peak) peak = running;
+    const ddPct = peak > 0 ? ((peak - running) / peak) * 100 : 0;
+    const ddAmt = peak - running;         // $ en este mismo punto
+    if (ddPct > maxDD) {
+      maxDD = ddPct;
+      maxDDAmount = ddAmt;               // trackeado en el mismo punto que el %
+    }
+  }
+
+  const currentDD = peak > 0 ? ((peak - running) / peak) * 100 : 0;
+  const currentDDAmount = peak - running;
+
+  return { maxDD, currentDD, maxDDAmount, currentDDAmount, peakBalance: peak, currentBalance: running };
+}
 
 const parseRR = (rr: string | null): number | null => {
   if (!rr) return null;
@@ -233,6 +289,95 @@ export function useStats(
       return { account: acc, pnl: accPnl, winRate: accWR, avgRR: accAvgRR, tradeCount: accTrades.length };
     });
 
+    // ── Drawdown ─────────────────────────────────────────────────────────────
+    const ddTrades = isAll ? effectiveTrades : trades;
+    const drawdown = calcDrawdown(initialBalance, ddTrades);
+    const selectedAcc = isAll ? null : accounts.find(a => a.id === selectedAccountId) ?? null;
+    const maxDrawdownLimit = selectedAcc?.max_drawdown_percentage ?? null;
+    const accountDrawdownLimits = isAll
+      ? accounts
+          .filter(a => a.max_drawdown_percentage != null && a.max_drawdown_percentage > 0)
+          .map(a => {
+            const accTrades = trades.filter(t => t.trading_account_id === a.id);
+            const dd = calcDrawdown(a.initial_balance ?? 0, accTrades);
+            return { account: a, dd };
+          })
+      : [];
+
+    // ── Profit Factor ────────────────────────────────────────────────────────
+    const grossWins = periodTrades.reduce((s, t) => s + (t.result_amount != null && t.result_amount > 0 ? t.result_amount : 0), 0);
+    const grossLosses = periodTrades.reduce((s, t) => s + (t.result_amount != null && t.result_amount < 0 ? Math.abs(t.result_amount) : 0), 0);
+    const profitFactor: number | null = grossLosses === 0 ? null : grossWins / grossLosses;
+
+    // ── Expectativa por operación ─────────────────────────────────────────────
+    const winTrades = periodTrades.filter(t => t.status === 'ganada' && t.result_amount != null);
+    const lossTrades = periodTrades.filter(t => t.status === 'perdida' && t.result_amount != null);
+    const avgWin = winTrades.length > 0 ? winTrades.reduce((s, t) => s + t.result_amount!, 0) / winTrades.length : 0;
+    const avgLoss = lossTrades.length > 0 ? Math.abs(lossTrades.reduce((s, t) => s + t.result_amount!, 0) / lossTrades.length) : 0;
+    const resolvedCount = winTrades.length + lossTrades.length;
+    const winRateDecimal = resolvedCount > 0 ? winTrades.length / resolvedCount : 0;
+    const expectancy: number | null = resolvedCount > 0
+      ? winRateDecimal * avgWin - (1 - winRateDecimal) * avgLoss
+      : null;
+
+    // ── Rachas récord (cronológico, sobre periodTrades) ───────────────────────
+    const chronoPeriod = [...periodTrades].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
+    let bestWinStreak = 0;
+    let worstLossStreak = 0;
+    let curWin = 0;
+    let curLoss = 0;
+    for (const t of chronoPeriod) {
+      if (t.status === 'ganada') {
+        curWin++;
+        curLoss = 0;
+        if (curWin > bestWinStreak) bestWinStreak = curWin;
+      } else if (t.status === 'perdida') {
+        curLoss++;
+        curWin = 0;
+        if (curLoss > worstLossStreak) worstLossStreak = curLoss;
+      } else {
+        curWin = 0;
+        curLoss = 0;
+      }
+    }
+
+    // ── Factor de recuperación ────────────────────────────────────────────────
+    const recoveryFactor: number | null =
+      drawdown.maxDDAmount > 0 ? totalPnl / drawdown.maxDDAmount : null;
+
+    // ── Días ganadores / perdedores ───────────────────────────────────────────
+    const dayMap = new Map<string, number>();
+    for (const t of periodTrades) {
+      if (!t.trade_date) continue;
+      dayMap.set(t.trade_date, (dayMap.get(t.trade_date) ?? 0) + (t.result_amount ?? 0));
+    }
+    let winningDays = 0;
+    let losingDays = 0;
+    for (const v of dayMap.values()) {
+      if (v > 0) winningDays++;
+      else if (v < 0) losingDays++;
+    }
+
+    // ── Mejor / Peor mes ─────────────────────────────────────────────────────
+    const monthMap = new Map<string, number>();
+    for (const t of effectiveTrades) {   // todos los trades de la selección (no filtrados por período)
+      if (!t.trade_date) continue;
+      const ym = t.trade_date.slice(0, 7); // "2024-03"
+      monthMap.set(ym, (monthMap.get(ym) ?? 0) + (t.result_amount ?? 0));
+    }
+    const monthEntries = Array.from(monthMap.entries()).map(([ym, pnl]) => {
+      const [y, m] = ym.split('-');
+      const label = new Date(Number(y), Number(m) - 1, 1)
+        .toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+      return { label, pnl };
+    });
+    const bestMonth = monthEntries.length > 0
+      ? monthEntries.reduce((a, b) => b.pnl > a.pnl ? b : a)
+      : null;
+    const worstMonth = monthEntries.length > 0
+      ? monthEntries.reduce((a, b) => b.pnl < a.pnl ? b : a)
+      : null;
+
     return {
       periodTrades, allTrades: trades,
       balancePoints,
@@ -245,6 +390,12 @@ export function useStats(
       currentWeekPnl, prevWeekPnl, currentYearPnl, prevYearPnl,
       byAsset, bySession, byTimeframe, byZone, byStrategy,
       accountBreakdown,
+      drawdown, maxDrawdownLimit, accountDrawdownLimits,
+      profitFactor, expectancy,
+      bestWinStreak, worstLossStreak,
+      recoveryFactor,
+      winningDays, losingDays,
+      bestMonth, worstMonth,
     };
   }, [trades, accounts, selectedAccountId, period, ALL_ACCOUNTS_ID]);
 }

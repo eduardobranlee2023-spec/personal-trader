@@ -14,8 +14,9 @@ import { useAccountCosts } from '../hooks/useAccountCosts';
 import type { Trade } from '../hooks/useTrades';
 import {
   TrendingUp, TrendingDown, Flame, AlertTriangle,
-  BarChart2, Target, Zap, ArrowUpRight, ArrowDownRight
+  BarChart2, Target, Zap, ArrowUpRight, ArrowDownRight, ShieldAlert
 } from 'lucide-react';
+import type { DrawdownResult } from '../hooks/useStats';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,80 @@ const PERIODS: Period[] = ['1W', '1M', '3M', '1Y', 'ALL'];
 const PERIOD_LABELS: Record<Period, string> = { '1W': '1 Sem', '1M': '1 Mes', '3M': '3 Meses', '1Y': '1 Año', 'ALL': 'Todo' };
 
 const COLORS = ['var(--blu)', 'var(--acc)', 'var(--amb)', 'var(--red)', '#8B5CF6', '#EC4899', '#06B6D4'];
+
+// ─── Drawdown Card ────────────────────────────────────────────────────────────
+
+const DrawdownCard: React.FC<{
+  dd: DrawdownResult;
+  limitPct: number | null;
+  title?: string;
+  compact?: boolean;
+}> = ({ dd, limitPct, title, compact }) => {
+  const usedPct = limitPct != null && limitPct > 0 ? (dd.currentDD / limitPct) * 100 : null;
+  const barColor =
+    usedPct == null ? 'var(--acc)'
+    : usedPct >= 85 ? 'var(--red)'
+    : usedPct >= 60 ? 'var(--amb)'
+    : 'var(--acc)';
+  const tagClass =
+    usedPct == null ? ''
+    : usedPct >= 85 ? 'tag-loss'
+    : usedPct >= 60 ? 'tag-warn'
+    : 'tag-win';
+
+  return (
+    <div className={`stat-card ${compact ? '' : 'col-span-2'}`}>
+      {!compact && (
+        <div className="sc-top">
+          <ShieldAlert className="w-5 h-5" style={{ color: barColor }} />
+        </div>
+      )}
+      {title && <div className="sc-lbl mb-2">{title}</div>}
+      {!title && !compact && <div className="sc-lbl">Drawdown</div>}
+
+      <div className="flex gap-6 flex-wrap">
+        {/* Max DD */}
+        <div>
+          <div className="sc-sub mb-0.5">Máximo histórico</div>
+          <div className="sc-val negative">{dd.maxDD.toFixed(2)}%</div>
+          <div className="sc-sub">{fmtUSD(dd.maxDDAmount)}</div>
+        </div>
+        {/* Current DD */}
+        <div>
+          <div className="sc-sub mb-0.5">Drawdown actual</div>
+          <div className={`sc-val ${dd.currentDD > 0 ? 'negative' : 'accent'}`}>
+            {dd.currentDD.toFixed(2)}%
+          </div>
+          <div className="sc-sub">{fmtUSD(dd.currentDDAmount)}</div>
+        </div>
+      </div>
+
+      {/* Límite prop firm */}
+      {limitPct != null && limitPct > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="sc-sub">Límite prop firm: {limitPct}%</span>
+            <span className={`tag ${tagClass}`}>
+              {usedPct!.toFixed(1)}% usado
+            </span>
+          </div>
+          <div style={{ height: 6, borderRadius: 4, background: 'var(--line2)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${Math.min(usedPct!, 100).toFixed(1)}%`,
+              background: barColor,
+              borderRadius: 4,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+          <div className="sc-sub mt-1" style={{ color: barColor }}>
+            Actual {dd.currentDD.toFixed(2)}% de {limitPct}% permitido
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -304,6 +379,63 @@ const StatsPage: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </div>
+          {/* ── Row 2: Drawdown ────────────────────────────────────────── */}
+          <div>
+            <h2 className="text-sm font-semibold text-textMuted uppercase mb-3">Riesgo / Drawdown</h2>
+            <div className="stat-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <DrawdownCard
+                dd={stats.drawdown}
+                limitPct={stats.maxDrawdownLimit}
+              />
+
+              {/* En vista "todas las cuentas": mini-lista de cuentas con límite configurado */}
+              {isAll && stats.accountDrawdownLimits.length > 0 && (
+                <div className="stat-card col-span-2">
+                  <div className="sc-lbl mb-3">Límites por cuenta</div>
+                  <div className="space-y-3">
+                    {stats.accountDrawdownLimits.map(({ account, dd }) => {
+                      const limit = account.max_drawdown_percentage!;
+                      const used = (dd.currentDD / limit) * 100;
+                      const barColor =
+                        used >= 85 ? 'var(--red)'
+                        : used >= 60 ? 'var(--amb)'
+                        : 'var(--acc)';
+                      const tagClass =
+                        used >= 85 ? 'tag-loss'
+                        : used >= 60 ? 'tag-warn'
+                        : 'tag-win';
+                      return (
+                        <div key={account.id}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div>
+                              <span className="text-sm font-medium text-text">{account.name}</span>
+                              {account.broker_or_prop_firm && (
+                                <span className="sc-sub ml-1.5">· {account.broker_or_prop_firm}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="sc-sub">{dd.currentDD.toFixed(2)}% / {limit}%</span>
+                              <span className={`tag ${tagClass}`}>{used.toFixed(1)}% usado</span>
+                            </div>
+                          </div>
+                          <div style={{ height: 5, borderRadius: 3, background: 'var(--line2)', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${Math.min(used, 100).toFixed(1)}%`,
+                              background: barColor,
+                              borderRadius: 3,
+                              transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <TradeChip label="🏆 Mejor operativa" trade={stats.bestTrade} />
             <TradeChip label="💔 Peor operativa" trade={stats.worstTrade} />

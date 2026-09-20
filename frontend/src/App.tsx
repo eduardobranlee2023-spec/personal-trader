@@ -7,6 +7,7 @@ import { AuthGuard, AdminGuard } from './components/guards/Guards';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PendingAccess from './pages/PendingAccess';
+import Expired from './pages/Expired';
 import Dashboard from './pages/Dashboard';
 import AccountsPage from './pages/AccountsPage';
 import TradesPage from './pages/TradesPage';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/pending" element={<PendingAccess />} />
+            <Route path="/expired" element={<Expired />} />
 
             {/* Protected routes - requires auth AND active access */}
             <Route element={<AuthGuard />}>

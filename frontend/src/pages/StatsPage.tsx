@@ -14,7 +14,8 @@ import { useAccountCosts } from '../hooks/useAccountCosts';
 import type { Trade } from '../hooks/useTrades';
 import {
   TrendingUp, TrendingDown, Flame, AlertTriangle,
-  BarChart2, Target, Zap, ArrowUpRight, ArrowDownRight, ShieldAlert
+  BarChart2, Target, Zap, ArrowUpRight, ArrowDownRight, ShieldAlert,
+  Activity, Calendar, Trophy, RotateCcw
 } from 'lucide-react';
 import type { DrawdownResult } from '../hooks/useStats';
 
@@ -37,7 +38,8 @@ const DrawdownCard: React.FC<{
   limitPct: number | null;
   title?: string;
   compact?: boolean;
-}> = ({ dd, limitPct, title, compact }) => {
+  fmtMoney: (n: number, withSign?: boolean) => string;
+}> = ({ dd, limitPct, title, compact, fmtMoney }) => {
   const usedPct = limitPct != null && limitPct > 0 ? (dd.currentDD / limitPct) * 100 : null;
   const barColor =
     usedPct == null ? 'var(--acc)'
@@ -65,7 +67,7 @@ const DrawdownCard: React.FC<{
         <div>
           <div className="sc-sub mb-0.5">Máximo histórico</div>
           <div className="sc-val negative">{dd.maxDD.toFixed(2)}%</div>
-          <div className="sc-sub">{fmtUSD(dd.maxDDAmount)}</div>
+          <div className="sc-sub">{fmtMoney(dd.maxDDAmount)}</div>
         </div>
         {/* Current DD */}
         <div>
@@ -73,7 +75,7 @@ const DrawdownCard: React.FC<{
           <div className={`sc-val ${dd.currentDD > 0 ? 'negative' : 'accent'}`}>
             {dd.currentDD.toFixed(2)}%
           </div>
-          <div className="sc-sub">{fmtUSD(dd.currentDDAmount)}</div>
+          <div className="sc-sub">{fmtMoney(dd.currentDDAmount)}</div>
         </div>
       </div>
 
@@ -117,7 +119,7 @@ const StatCard: React.FC<{ label: string; value: string; sub?: string; accent?: 
   </div>
 );
 
-const TradeChip: React.FC<{ label: string; trade: Trade | null }> = ({ label, trade }) => {
+const TradeChip: React.FC<{ label: string; trade: Trade | null; fmtMoney: (n: number, withSign?: boolean) => string }> = ({ label, trade, fmtMoney }) => {
   if (!trade) return (
     <div className="stat-card">
       <div className="sc-lbl mb-2">{label}</div>
@@ -130,7 +132,7 @@ const TradeChip: React.FC<{ label: string; trade: Trade | null }> = ({ label, tr
       <div className="sc-lbl mb-2">{label}</div>
       <div className="fund-name">{trade.asset}</div>
       <div className={`sc-val ${pos ? 'accent' : 'negative'} mt-1`}>
-        {pos ? '+' : ''}{fmtUSD(trade.result_amount ?? 0)}
+        {fmtMoney(trade.result_amount ?? 0, true)}
       </div>
       <div className="sc-sub">
         {trade.direction} · {trade.timeframe} · {trade.session} · {trade.trade_date}
@@ -139,7 +141,7 @@ const TradeChip: React.FC<{ label: string; trade: Trade | null }> = ({ label, tr
   );
 };
 
-const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> = ({ label, current, prev }) => {
+const PeriodCompare: React.FC<{ label: string; current: number; prev: number; fmtMoney: (n: number, withSign?: boolean) => string }> = ({ label, current, prev, fmtMoney }) => {
   const diff = current - prev;
   const isPos = diff >= 0;
   const pct = prev !== 0 ? ((diff / Math.abs(prev)) * 100).toFixed(1) : null;
@@ -152,7 +154,7 @@ const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> 
       <div className="sc-lbl mb-1">{label}</div>
       <div className={`sc-val ${isPos ? 'accent' : 'negative'} flex items-center gap-2`}>
         {isPos ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-        {fmtUSD(current)}
+        {fmtMoney(current)}
         {pct && <span className="sc-sub">({isPos ? '+' : ''}{pct}% vs anterior)</span>}
       </div>
       <div className="mt-3 h-24">
@@ -161,7 +163,7 @@ const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> 
             <YAxis hide domain={['auto', 'auto']} />
             <Tooltip
               contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }}
-              formatter={(v) => [fmtUSD(Number(v ?? 0)), 'P&L']}
+              formatter={(v) => [fmtMoney(Number(v ?? 0)), 'P&L']}
             />
             <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
               {data.map((entry, i) => (
@@ -175,7 +177,7 @@ const PeriodCompare: React.FC<{ label: string; current: number; prev: number }> 
   );
 };
 
-const DistChart: React.FC<{ title: string; data: { name: string; trades: number; winRate: number; pnl: number }[] }> = ({ title, data }) => {
+const DistChart: React.FC<{ title: string; data: { name: string; trades: number; winRate: number; pnl: number }[]; fmtMoney: (n: number, withSign?: boolean) => string }> = ({ title, data, fmtMoney }) => {
   if (data.length === 0) return (
     <div className="chart-box p-5">
       <div className="chart-head"><span className="ch-t"><b>{title}</b></span></div>
@@ -194,7 +196,7 @@ const DistChart: React.FC<{ title: string; data: { name: string; trades: number;
             <Tooltip
               contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }}
               formatter={(v: any, name: any) => [
-                name === 'trades' ? `${v} ops` : name === 'winRate' ? `${v}%` : fmtUSD(Number(v ?? 0)),
+                name === 'trades' ? `${v} ops` : name === 'winRate' ? `${v}%` : fmtMoney(Number(v ?? 0)),
                 name === 'trades' ? 'Operaciones' : name === 'winRate' ? 'Win Rate' : 'P&L'
               ]}
             />
@@ -214,7 +216,7 @@ const DistChart: React.FC<{ title: string; data: { name: string; trades: number;
             </div>
             <div className="flex items-center gap-3">
               <span className={d.winRate >= 50 ? 'text-acc' : 'text-loss'}>{d.winRate}% WR</span>
-              <span className={d.pnl >= 0 ? 'text-acc' : 'text-loss'}>{fmtUSD(d.pnl)}</span>
+              <span className={d.pnl >= 0 ? 'text-acc' : 'text-loss'}>{fmtMoney(d.pnl)}</span>
             </div>
           </div>
         ))}
@@ -226,7 +228,7 @@ const DistChart: React.FC<{ title: string; data: { name: string; trades: number;
 
 // ─── Custom Tooltip for Area Chart ───────────────────────────────────────────
 
-const BalanceTooltip: React.FC<any> = ({ active, payload, label }) => {
+const BalanceTooltip: React.FC<any> = ({ active, payload, label, fmtMoney }) => {
   if (!active || !payload?.length) return null;
   const bal = payload[0]?.value;
   const pnl = payload[1]?.value;
@@ -236,7 +238,7 @@ const BalanceTooltip: React.FC<any> = ({ active, payload, label }) => {
       <div className="sc-val">{fmtUSD(bal)}</div>
       {pnl != null && (
         <div className={`sc-sub ${pnl >= 0 ? 'text-acc' : 'text-loss'}`}>
-          {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)} ese día
+          {fmtMoney(pnl, true)} ese día
         </div>
       )}
     </div>
@@ -251,6 +253,15 @@ const StatsPage: React.FC = () => {
   const [period, setPeriod] = useState<Period>('1M');
   const [strategyFilter, setStrategyFilter] = useState('');
 
+  const [displayMode, setDisplayMode] = useState<'money' | 'percentage'>(() => {
+    return (localStorage.getItem('pt-stats-display') as 'money' | 'percentage') || 'money';
+  });
+
+  const toggleDisplayMode = (mode: 'money' | 'percentage') => {
+    setDisplayMode(mode);
+    localStorage.setItem('pt-stats-display', mode);
+  };
+
   const { trades, isLoading } = useTrades({
     accountId: selectedAccountId,
     strategyId: strategyFilter || undefined,
@@ -262,6 +273,20 @@ const StatsPage: React.FC = () => {
   const stats = useStats(trades, accounts, selectedAccountId, period, ALL_ACCOUNTS_ID);
   const isAll = selectedAccountId === ALL_ACCOUNTS_ID;
   const isPos = stats.totalPnl >= 0;
+
+  const activeAccounts = isAll ? accounts.filter(a => a.status !== 'quemada') : accounts;
+  const initialBalance = isAll
+    ? activeAccounts.reduce((s, a) => s + (a.initial_balance ?? 0), 0)
+    : accounts.find(a => a.id === selectedAccountId)?.initial_balance ?? 0;
+
+  const fmtMoney = (val: number, withSign = false) => {
+    if (displayMode === 'percentage') {
+      if (initialBalance === 0) return '0.00%';
+      const pct = (val / initialBalance) * 100;
+      return `${withSign && pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
+    }
+    return `${withSign && val > 0 ? '+' : ''}${fmtUSD(val)}`;
+  };
 
   if (isLoading) return (
     <AppLayout>
@@ -287,7 +312,12 @@ const StatsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="seg">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="seg">
+            <button type="button" onClick={() => toggleDisplayMode('money')} className={displayMode === 'money' ? 'on-acc' : ''}>Dinero</button>
+            <button type="button" onClick={() => toggleDisplayMode('percentage')} className={displayMode === 'percentage' ? 'on-acc' : ''}>Porcentaje</button>
+          </div>
+          <div className="seg">
           {PERIODS.map(p => (
             <button key={p} type="button" onClick={() => setPeriod(p)}
               className={period === p ? 'on-acc' : ''}
@@ -304,6 +334,7 @@ const StatsPage: React.FC = () => {
             ))}
           </select>
         </div>
+        </div>
       </div>
 
       {stats.periodTrades.length === 0 ? (
@@ -317,8 +348,8 @@ const StatsPage: React.FC = () => {
           <div className="stat-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               label="P&L del período"
-              value={`${isPos ? '+' : ''}${fmtUSD(stats.totalPnl)}`}
-              sub={`${fmtPct(stats.totalPnlPct)} del capital`}
+              value={fmtMoney(stats.totalPnl, true)}
+              sub={displayMode === 'percentage' ? 'P&L total' : `${fmtPct(stats.totalPnlPct)} del capital`}
               accent={isPos}
               negative={!isPos}
               icon={isPos ? <TrendingUp className="w-5 h-5 text-acc" /> : <TrendingDown className="w-5 h-5 text-loss" />}
@@ -356,6 +387,49 @@ const StatsPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="stat-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-4">
+            <StatCard
+              label="Profit Factor"
+              value={stats.profitFactor !== null ? stats.profitFactor.toFixed(2) : '∞'}
+              sub="Ganancias / Pérdidas"
+              accent={stats.profitFactor !== null && stats.profitFactor >= 1}
+              icon={<Activity className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Expectativa"
+              value={stats.expectancy !== null ? fmtMoney(stats.expectancy, true) : '—'}
+              sub="por operación promedio"
+              accent={stats.expectancy !== null && stats.expectancy >= 0}
+              negative={stats.expectancy !== null && stats.expectancy < 0}
+              icon={<Target className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Racha Récord"
+              value={`${stats.bestWinStreak}G`}
+              sub={`Peor racha: ${stats.worstLossStreak}P`}
+              accent={true}
+              icon={<Trophy className="w-5 h-5 text-acc" />}
+            />
+            <StatCard
+              label="Factor Recuperación"
+              value={stats.recoveryFactor !== null ? stats.recoveryFactor.toFixed(2) : 'N/A'}
+              sub="P&L / Max DD $"
+              icon={<RotateCcw className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Días Operativos"
+              value={`${stats.winningDays}G / ${stats.losingDays}P`}
+              sub={`${stats.winningDays + stats.losingDays} días con trades`}
+              icon={<Calendar className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Mejor Mes"
+              value={stats.bestMonth ? fmtMoney(stats.bestMonth.pnl, true) : '—'}
+              sub={stats.worstMonth ? `Peor mes: ${fmtMoney(stats.worstMonth.pnl, true)}` : 'Sin datos'}
+              icon={<Calendar className="w-5 h-5 text-primary" />}
+            />
+          </div>
+
           <div className="chart-box">
             <div className="chart-head"><span className="ch-t"><b>Evolución del Balance</b></span></div>
             <div className="p-5 h-64">
@@ -371,7 +445,7 @@ const StatsPage: React.FC = () => {
                   <XAxis dataKey="date" tick={{ fill: 'var(--mut2)', fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: 'var(--mut2)', fontSize: 11 }} tickLine={false} axisLine={false}
                     tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip content={<BalanceTooltip />} />
+                  <Tooltip content={<BalanceTooltip fmtMoney={fmtMoney} />} />
                   <Area type="monotone" dataKey="balance" stroke={accent} strokeWidth={2}
                     fill="url(#balGrad)" dot={false} activeDot={{ r: 4, fill: accent }} />
                   <Area type="monotone" dataKey="pnl" stroke="transparent" fill="transparent" />
@@ -386,6 +460,7 @@ const StatsPage: React.FC = () => {
               <DrawdownCard
                 dd={stats.drawdown}
                 limitPct={stats.maxDrawdownLimit}
+                fmtMoney={fmtMoney}
               />
 
               {/* En vista "todas las cuentas": mini-lista de cuentas con límite configurado */}
@@ -437,21 +512,21 @@ const StatsPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <TradeChip label="🏆 Mejor operativa" trade={stats.bestTrade} />
-            <TradeChip label="💔 Peor operativa" trade={stats.worstTrade} />
-            <PeriodCompare label="Esta semana vs anterior" current={stats.currentWeekPnl} prev={stats.prevWeekPnl} />
-            <PeriodCompare label="Este año vs anterior" current={stats.currentYearPnl} prev={stats.prevYearPnl} />
+            <TradeChip label="🏆 Mejor operativa" trade={stats.bestTrade} fmtMoney={fmtMoney} />
+            <TradeChip label="💔 Peor operativa" trade={stats.worstTrade} fmtMoney={fmtMoney} />
+            <PeriodCompare label="Esta semana vs anterior" current={stats.currentWeekPnl} prev={stats.prevWeekPnl} fmtMoney={fmtMoney} />
+            <PeriodCompare label="Este año vs anterior" current={stats.currentYearPnl} prev={stats.prevYearPnl} fmtMoney={fmtMoney} />
           </div>
 
           {/* ── Distributions ─────────────────────────────────────────────── */}
           <div>
             <h2 className="text-sm font-semibold text-textMuted uppercase mb-4">¿En qué contexto rendís mejor?</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              <DistChart title="Por Activo" data={stats.byAsset} />
-              <DistChart title="Por Sesión" data={stats.bySession} />
-              <DistChart title="Por Temporalidad" data={stats.byTimeframe} />
-              <DistChart title="Por Zona / Setup" data={stats.byZone} />
-              <DistChart title="Por Estrategia" data={stats.byStrategy} />
+              <DistChart title="Por Activo" data={stats.byAsset} fmtMoney={fmtMoney} />
+              <DistChart title="Por Sesión" data={stats.bySession} fmtMoney={fmtMoney} />
+              <DistChart title="Por Temporalidad" data={stats.byTimeframe} fmtMoney={fmtMoney} />
+              <DistChart title="Por Zona / Setup" data={stats.byZone} fmtMoney={fmtMoney} />
+              <DistChart title="Por Estrategia" data={stats.byStrategy} fmtMoney={fmtMoney} />
             </div>
           </div>
 
@@ -498,7 +573,7 @@ const StatsPage: React.FC = () => {
                               {hasCost ? fmtUSD(cost) : '—'}
                             </td>
                             <td className={`${pnl >= 0 ? 'pos' : 'neg'}`} style={{ textAlign: 'right' }}>
-                              {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)}
+                              {fmtMoney(pnl, true)}
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               {recoveredPct !== null ? (

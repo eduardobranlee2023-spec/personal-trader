@@ -138,10 +138,9 @@ const FundingPage: React.FC = () => {
 
   const roiPositive = metrics.netRoi !== null && metrics.netRoi >= 0;
 
-  const totalBought = investments.length;
-  const approvedCount = investments.filter(i => i.status === 'aprobada').length;
+  const passedFundingCount = fundedAccounts.filter(a => a.funded_phase === 'verificada').length;
   const blownCount = fundedAccounts.filter(a => a.status === 'quemada').length;
-  const approvedPct = totalBought > 0 ? ((approvedCount / totalBought) * 100).toFixed(1) : '0.0';
+  const approvedPct = fundedAccounts.length > 0 ? ((passedFundingCount / fundedAccounts.length) * 100).toFixed(1) : '0.0';
   const blownPct = fundedAccounts.length > 0 ? ((blownCount / fundedAccounts.length) * 100).toFixed(1) : '0.0';
 
   return (
@@ -218,7 +217,7 @@ const FundingPage: React.FC = () => {
                 <span className="sc-lbl flex items-center gap-2"><TrendingDown className="w-3.5 h-3.5 text-loss" /> Tasa de Aprobación</span>
               </div>
               <div className="sc-val accent mono">{approvedPct}%</div>
-              <div className="sc-sub">{approvedCount} de {totalBought} evaluación{totalBought !== 1 ? 'es' : ''} aprobada{approvedCount !== 1 ? 's' : ''}</div>
+              <div className="sc-sub">{passedFundingCount} de {fundedAccounts.length} cuenta{fundedAccounts.length !== 1 ? 's' : ''} fondeada{fundedAccounts.length !== 1 ? 's' : ''}</div>
             </div>
             <div className="stat-card">
               <div className="sc-top">

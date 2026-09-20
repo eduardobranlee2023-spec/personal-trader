@@ -21,13 +21,12 @@ export const AuthGuard: React.FC = () => {
     return <Outlet />;
   }
 
-  if (profile?.access_status === 'pendiente') {
-    return <Navigate to="/pending" replace />;
-  }
+  const hasActiveSubscription = profile?.access_status === 'activa' && 
+                                profile?.subscription_expires_at && 
+                                new Date(profile.subscription_expires_at) > new Date();
 
-  const blockedStatuses = ['inactive', 'expired'];
-  if (profile?.subscription_status && blockedStatuses.includes(profile.subscription_status)) {
-    return <Navigate to="/pending" replace />;
+  if (!hasActiveSubscription) {
+    return <Navigate to="/expired" replace />;
   }
 
   return <Outlet />;

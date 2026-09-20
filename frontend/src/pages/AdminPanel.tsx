@@ -5,14 +5,14 @@ import type { Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   TrendingUp, Users, LogOut, CheckCircle2, Clock, XCircle,
-  Shield, Calendar, ChevronDown
+  Shield, ChevronDown, X
 } from 'lucide-react';
 
-type AccessStatus = 'pendiente' | 'activo' | 'revocado';
+type AccessStatus = 'pendiente' | 'activa' | 'vencida' | 'cancelada' | 'revocada';
 
 const statusConfig: Record<AccessStatus, { label: string; tag: string; icon: React.ReactNode }> = {
-  activo: {
-    label: 'Activo',
+  activa: {
+    label: 'Activa',
     tag: 'tag tag-win',
     icon: <CheckCircle2 className="w-3.5 h-3.5" />,
   },
@@ -21,8 +21,18 @@ const statusConfig: Record<AccessStatus, { label: string; tag: string; icon: Rea
     tag: 'tag tag-warn',
     icon: <Clock className="w-3.5 h-3.5" />,
   },
-  revocado: {
-    label: 'Revocado',
+  vencida: {
+    label: 'Vencida',
+    tag: 'tag tag-loss',
+    icon: <XCircle className="w-3.5 h-3.5" />,
+  },
+  cancelada: {
+    label: 'Cancelada',
+    tag: 'tag tag-neutral',
+    icon: <XCircle className="w-3.5 h-3.5" />,
+  },
+  revocada: {
+    label: 'Revocada',
     tag: 'tag tag-loss',
     icon: <XCircle className="w-3.5 h-3.5" />,
   },
@@ -35,6 +45,8 @@ const AdminPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [renewModalUser, setRenewModalUser] = useState<Profile | null>(null);
+  const [exactDateInput, setExactDateInput] = useState('');
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -54,6 +66,11 @@ const AdminPanel: React.FC = () => {
   }, []);
 
   const handleStatusChange = async (targetUser: Profile, newStatus: AccessStatus) => {
+    if (newStatus === 'activa') {
+      setRenewModalUser(targetUser);
+      return;
+    }
+    
     if (targetUser.access_status === newStatus) return;
     setUpdatingId(targetUser.id);
     setMessage(null);
@@ -61,12 +78,6 @@ const AdminPanel: React.FC = () => {
     const updates: Record<string, unknown> = {
       access_status: newStatus,
     };
-
-    // If activating, set granted_at and granted_by
-    if (newStatus === 'activo') {
-      updates.access_granted_at = new Date().toISOString();
-      updates.access_granted_by = adminProfile?.id;
-    }
 
     const { error } = await supabase
       .from('profiles')
@@ -85,6 +96,57 @@ const AdminPanel: React.FC = () => {
     setUpdatingId(null);
   };
 
+  const handleRenew = async (targetUser: Profile, months: number | null, exactDate: string | null) => {
+    setUpdatingId(targetUser.id);
+    setRenewModalUser(null);
+    setMessage(null);
+
+    let newDate = new Date();
+    // Si ya tiene una fecha futura, extendemos desde esa fecha
+    if (targetUser.access_status === 'activa' && targetUser.subscription_expires_at) {
+      const currentExp = new Date(targetUser.subscription_expires_at);
+      if (currentExp > newDate) {
+        newDate = currentExp;
+      }
+    }
+
+    if (months !== null) {
+      newDate.setMonth(newDate.getMonth() + months);
+    } else if (exactDate !== null) {
+      newDate = new Date(exactDate);
+    }
+
+    // Punto de integración de Webhooks:
+    // En el futuro, un webhook de Mercado Pago o Stripe podría llamar a una Edge Function 
+    // que ejecute exactamente este update en la base de datos de Supabase.
+    const updates: Record<string, unknown> = {
+      access_status: 'activa',
+      subscription_expires_at: newDate.toISOString(),
+      last_payment_confirmed_at: new Date().toISOString(),
+    };
+
+    if (!targetUser.access_granted_at) {
+      updates.access_granted_at = new Date().toISOString();
+      updates.access_granted_by = adminProfile?.id;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', targetUser.id);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Error al renovar: ${error.message}` });
+    } else {
+      setMessage({
+        type: 'success',
+        text: `Suscripción de ${targetUser.email} renovada hasta ${newDate.toLocaleDateString()}.`,
+      });
+      await fetchUsers();
+    }
+    setUpdatingId(null);
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -92,9 +154,16 @@ const AdminPanel: React.FC = () => {
 
   const stats = {
     total: users.length,
-    active: users.filter(u => u.access_status === 'activo').length,
+    active: users.filter(u => u.access_status === 'activa').length,
     pending: users.filter(u => u.access_status === 'pendiente').length,
-    revoked: users.filter(u => u.access_status === 'revocado').length,
+    vencida: users.filter(u => u.access_status === 'vencida').length,
+  };
+
+  const calculateDaysLeft = (expiresAt: string | null) => {
+    if (!expiresAt) return null;
+    const diff = new Date(expiresAt).getTime() - new Date().getTime();
+    const days = Math.ceil(diff / (1000 * 3600 * 24));
+    return days;
   };
 
   return (
@@ -138,7 +207,7 @@ const AdminPanel: React.FC = () => {
             <Users className="w-8 h-8 text-primary" />
             Gestión de Usuarios
           </h1>
-          <p className="page-sub mt-1">Activá, pausá o revocá el acceso de los traders registrados.</p>
+          <p className="page-sub mt-1">Activá, pausá o renová el acceso de los traders registrados.</p>
         </div>
 
         <div className="stat-grid grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -146,7 +215,7 @@ const AdminPanel: React.FC = () => {
             { label: 'Total', value: stats.total, accent: false, negative: false },
             { label: 'Activos', value: stats.active, accent: true, negative: false },
             { label: 'Pendientes', value: stats.pending, warn: true },
-            { label: 'Revocados', value: stats.revoked, negative: true },
+            { label: 'Vencidos', value: stats.vencida, negative: true },
           ].map(s => (
             <div key={s.label} className="stat-card">
               <div className={`sc-val ${s.accent ? 'accent' : s.negative ? 'negative' : s.warn ? 'text-warn' : ''}`}>{s.value}</div>
@@ -173,15 +242,14 @@ const AdminPanel: React.FC = () => {
               <p>No hay usuarios registrados.</p>
             </div>
           ) : (
-            <div className="ptable-wrap border-0 rounded-none">
-              <table className="ptable">
+            <div className="ptable-wrap border-0 rounded-none overflow-x-auto">
+              <table className="ptable min-w-[800px]">
                 <thead>
                   <tr>
                     <th>Usuario</th>
                     <th>Rol</th>
-                    <th>Registro</th>
-                    <th>Activación</th>
                     <th>Estado</th>
+                    <th>Vencimiento</th>
                     <th style={{ textAlign: 'right' }}>Acción</th>
                   </tr>
                 </thead>
@@ -190,6 +258,7 @@ const AdminPanel: React.FC = () => {
                     const status = user.access_status as AccessStatus;
                     const cfg = statusConfig[status];
                     const isUpdating = updatingId === user.id;
+                    const daysLeft = calculateDaysLeft(user.subscription_expires_at || null);
 
                     return (
                       <tr key={user.id}>
@@ -212,23 +281,27 @@ const AdminPanel: React.FC = () => {
                         </td>
 
                         <td>
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 shrink-0" />
-                            {new Date(user.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                          </div>
-                        </td>
-
-                        <td className="sc-sub">
-                          {user.access_granted_at
-                            ? new Date(user.access_granted_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-                            : '—'}
-                        </td>
-
-                        <td>
                           <span className={`${cfg.tag} flex items-center gap-1.5 w-fit`}>
                             {cfg.icon}
                             {cfg.label}
                           </span>
+                        </td>
+
+                        <td>
+                          {user.subscription_expires_at ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm">
+                                {new Date(user.subscription_expires_at).toLocaleDateString()}
+                              </span>
+                              {daysLeft !== null && (
+                                <span className={`text-xs ${daysLeft < 0 ? 'text-loss' : daysLeft < 5 ? 'text-warn' : 'text-textMuted'}`}>
+                                  {daysLeft < 0 ? `Vencido hace ${Math.abs(daysLeft)} días` : `Quedan ${daysLeft} días`}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="sc-sub">—</span>
+                          )}
                         </td>
 
                         <td style={{ textAlign: 'right' }}>
@@ -243,14 +316,21 @@ const AdminPanel: React.FC = () => {
                                 >
                                   Cambiar <ChevronDown className="w-3 h-3" />
                                 </button>
-                                <div className="absolute right-0 top-full mt-1 w-36 panel-card shadow-xl z-20 hidden group-hover:block">
-                                  {(['activo', 'pendiente', 'revocado'] as AccessStatus[]).map(s => (
+                                <div className="absolute right-0 top-full mt-1 min-w-[12rem] panel-card shadow-xl z-20 hidden group-hover:flex group-hover:flex-col items-stretch">
+                                  <button
+                                    onClick={() => handleStatusChange(user, 'activa')}
+                                    className={`w-full text-left px-4 py-2.5 text-xs transition hover:bg-[var(--line)] first:rounded-t-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${statusConfig['activa'].tag}`}
+                                  >
+                                    {statusConfig['activa'].icon}
+                                    Renovar / Activar
+                                  </button>
+                                  {(['vencida', 'pendiente', 'cancelada', 'revocada'] as AccessStatus[]).map(s => (
                                     <button
                                       key={s}
                                       id={`admin-set-${s}-${user.id}`}
                                       onClick={() => handleStatusChange(user, s)}
                                       disabled={status === s}
-                                      className={`w-full text-left px-4 py-2.5 text-xs transition hover:bg-[var(--line)] first:rounded-t-xl last:rounded-b-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${statusConfig[s].tag}`}
+                                      className={`w-full text-left px-4 py-2.5 text-xs transition hover:bg-[var(--line)] last:rounded-b-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${statusConfig[s].tag}`}
                                     >
                                       {statusConfig[s].icon}
                                       {statusConfig[s].label}
@@ -270,6 +350,64 @@ const AdminPanel: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Renew Modal */}
+      {renewModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="panel-card w-full max-w-md p-6 relative">
+            <button 
+              onClick={() => setRenewModalUser(null)}
+              className="absolute top-4 right-4 text-textMuted hover:text-text transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold mb-1">Renovar Suscripción</h2>
+            <p className="text-sm text-textMuted mb-6">
+              Usuario: <span className="text-text font-medium">{renewModalUser.email}</span>
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <button 
+                onClick={() => handleRenew(renewModalUser, 1, null)}
+                className="btn btn-outline w-full justify-center"
+              >
+                + 1 Mes
+              </button>
+              <button 
+                onClick={() => handleRenew(renewModalUser, 3, null)}
+                className="btn btn-outline w-full justify-center"
+              >
+                + 3 Meses
+              </button>
+              <button 
+                onClick={() => handleRenew(renewModalUser, 12, null)}
+                className="btn btn-outline w-full justify-center"
+              >
+                + 12 Meses
+              </button>
+            </div>
+
+            <div className="border-t border-[var(--line)] pt-4">
+              <label className="block text-sm font-medium mb-2">O hasta fecha exacta:</label>
+              <div className="flex gap-2">
+                <input 
+                  type="date" 
+                  className="input flex-1"
+                  value={exactDateInput}
+                  onChange={(e) => setExactDateInput(e.target.value)}
+                />
+                <button 
+                  onClick={() => handleRenew(renewModalUser, null, exactDateInput)}
+                  disabled={!exactDateInput}
+                  className="btn btn-primary"
+                >
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -32,7 +32,7 @@ type UserBadge = {
   badge_definitions: BadgeDefinition;
 };
 
-const BADGE_ICONS: Record<string, React.FC<{ className?: string }>> = {
+const BADGE_ICONS: Record<string, React.ElementType> = {
   TrendingUp, DollarSign, Target, Star, Award,
 };
 
@@ -410,7 +410,7 @@ const GoalsPage: React.FC = () => {
                           className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-2xl"
                           style={{ background: def.accent_color + '20', border: `2px solid ${def.accent_color}50` }}
                         >
-                          <IconComponent className="w-7 h-7" style={{ color: def.accent_color } as React.CSSProperties} />
+                          <IconComponent className="w-7 h-7" color={def.accent_color} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-text">{def.name}</div>

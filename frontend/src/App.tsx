@@ -16,6 +16,7 @@ import StatsPage from './pages/StatsPage';
 import StrategiesPage from './pages/StrategiesPage';
 import FundingPage from './pages/FundingPage';
 import AdminPanel from './pages/AdminPanel';
+import GoalsPage from './pages/GoalsPage';
 
 const App: React.FC = () => {
   return (
@@ -40,6 +41,7 @@ const App: React.FC = () => {
               <Route path="/funding" element={<FundingPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/goals" element={<GoalsPage />} />
             </Route>
 
             {/* Admin-only routes */}

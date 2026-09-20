@@ -4,7 +4,7 @@ import { useAccounts, ALL_ACCOUNTS_ID } from '../../contexts/AccountContext';
 import { useWithdrawals, getNetAmount } from '../../hooks/useWithdrawals';
 import type { Withdrawal, WithdrawalMethod, WithdrawalStatus } from '../../hooks/useWithdrawals';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit2, Trash2, X, AlertCircle, ArrowDownToLine, TrendingUp, PiggyBank, Calendar, PieChart, Info } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, AlertCircle, ArrowDownToLine, TrendingUp, PiggyBank, Calendar, PieChart, Info, Search } from 'lucide-react';
 
 const fmtUSD = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
@@ -58,6 +58,7 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [accountSearch, setAccountSearch] = useState('');
 
   // ── Preview en tiempo real ────────────────────────────────────────────────
   const previewGross = parseFloat(formData.amount) || 0;
@@ -356,17 +357,69 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
               
               <div className="field">
                 <label>Cuenta de Trading *</label>
-                <select required value={formData.trading_account_id}
-                  onChange={e => setFormData({ ...formData, trading_account_id: e.target.value })}
-                  className="input">
-                  <option value="" disabled>Seleccionar cuenta...</option>
-                  {fundedAccounts.length > 0 && <optgroup label="Cuentas Fondeadas">
-                    {fundedAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </optgroup>}
-                  <optgroup label="Otras Cuentas">
-                    {accounts.filter(a => a.account_type !== 'fondeada').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </optgroup>
-                </select>
+                <div className="relative mb-2">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    type="search"
+                    value={accountSearch}
+                    onChange={e => setAccountSearch(e.target.value)}
+                    placeholder="Buscar cuenta por nombre..."
+                    className="input text-sm"
+                    style={{ paddingLeft: '2.5rem' }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto p-2 border border-white/10 rounded-lg bg-black/20">
+                  {accounts
+                    .filter(a => a.name.toLowerCase().includes(accountSearch.toLowerCase()))
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(a => {
+                      const isSelected = formData.trading_account_id === a.id;
+                      const fmtBal = a.current_balance != null
+                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(a.current_balance)
+                        : null;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, trading_account_id: a.id })}
+                          className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg border transition-colors ${
+                            isSelected
+                              ? 'border-primary/50 bg-primary/10'
+                              : 'border-white/5 bg-white/5 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                            isSelected ? 'border-primary' : 'border-white/30'
+                          }`}>
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">{a.name}</div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {a.account_type === 'fondeada' && a.funded_phase && (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                  a.funded_phase === 'verificada' ? 'tag tag-win' :
+                                  a.funded_phase === 'fase_2' ? 'tag tag-info' : 'tag tag-warn'
+                                }`}>
+                                  {a.funded_phase === 'verificada' ? 'Fondeada' :
+                                   a.funded_phase === 'fase_2' ? 'Fase 2' : 'Fase 1'}
+                                </span>
+                              )}
+                              {fmtBal && (
+                                <span className="text-xs text-textMuted">{fmtBal}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  }
+                  {accounts.filter(a => a.name.toLowerCase().includes(accountSearch.toLowerCase())).length === 0 && (
+                    <div className="p-4 text-center text-sm text-white/50">No se encontraron cuentas</div>
+                  )}
+                </div>
+                {/* Hidden input to keep form validation */}
+                <input type="hidden" required value={formData.trading_account_id} />
               </div>
 
               <div className="m-grid">

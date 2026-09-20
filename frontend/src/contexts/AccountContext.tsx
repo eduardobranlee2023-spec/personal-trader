@@ -147,9 +147,9 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     totalTrades: activeAccounts.reduce((s, a) => s + (a.trade_count ?? 0), 0),
     totalWithdrawals: activeAccounts.reduce((s, a) => s + (a.total_withdrawn ?? 0), 0),
     monthlyWithdrawals: activeAccounts.reduce((s, a) => s + ((a as any).monthly_withdrawn ?? 0), 0),
-    fundedCapital: accounts.filter(a => a.account_type === 'fondeada' && a.funded_phase === 'verificada' && a.status !== 'quemada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
-    challengeCapital: accounts.filter(a => a.account_type === 'fondeada' && (a.funded_phase === 'fase_1' || a.funded_phase === 'fase_2') && a.status !== 'quemada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
-    blownCapital: accounts.filter(a => a.status === 'quemada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
+    fundedCapital: accounts.filter(a => a.account_type === 'fondeada' && (a.funded_phase === 'verificada' || a.status === 'pasada') && a.status !== 'quemada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
+    challengeCapital: accounts.filter(a => a.account_type === 'fondeada' && (a.funded_phase === 'fase_1' || a.funded_phase === 'fase_2') && a.status !== 'quemada' && a.status !== 'pasada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
+    blownCapital: accounts.filter(a => a.account_type === 'fondeada' && a.status === 'quemada').reduce((s, a) => s + (a.current_balance ?? 0), 0),
   };
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId) ?? null;

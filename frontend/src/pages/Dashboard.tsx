@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccounts, ALL_ACCOUNTS_ID } from '../contexts/AccountContext';
-import { TrendingUp, TrendingDown, BarChart2, Wallet, BookOpen, CalendarDays, ArrowRight, BadgeDollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart2, Wallet, BookOpen, CalendarDays, ArrowRight, BadgeDollarSign, Target } from 'lucide-react';
 import Reveal from '../components/ui/Reveal';
 
 const fmt = (n: number, currency = 'USD') =>
@@ -131,6 +131,7 @@ const Dashboard: React.FC = () => {
             { icon: BookOpen, label: 'Estrategias', desc: 'Tus setups y playbooks', path: '/strategies' },
             { icon: CalendarDays, label: 'Calendario', desc: 'Vista mensual de operativas', path: '/calendar' },
             { icon: BadgeDollarSign, label: 'Fondeos', desc: 'Inversiones en evaluaciones', path: '/funding' },
+            { icon: Target, label: 'Metas', desc: 'Seguimiento de objetivos', path: '/goals' },
           ].map(({ icon: Icon, label, desc, path }, i) => (
             <Reveal key={path} delay={200 + i * 60}>
               <button

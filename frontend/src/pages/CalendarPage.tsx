@@ -60,6 +60,29 @@ const CalendarPage: React.FC = () => {
 
   const monthName = currentDate.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
 
+  // -- Monthly Summary Logic --
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const monthTrades = useMemo(() => trades.filter(t => t.trade_date.startsWith(monthPrefix)), [trades, monthPrefix]);
+
+  const monthStats = useMemo(() => {
+    const totalPnl = monthTrades.reduce((sum, t) => sum + (t.result_amount ?? 0), 0);
+    const count = monthTrades.length;
+    const wins = monthTrades.filter(t => (t.result_amount ?? 0) > 0).length;
+    const winRate = count > 0 ? (wins / count) * 100 : 0;
+    
+    const weeksCount = Math.ceil((daysInMonth + startOffset) / 7);
+    const weeklyPnl = Array(weeksCount).fill(0);
+    for (const t of monthTrades) {
+      const day = parseInt(t.trade_date.split('-')[2], 10);
+      const weekIndex = Math.floor((day + startOffset - 1) / 7);
+      if (weekIndex >= 0 && weekIndex < weeksCount) {
+        weeklyPnl[weekIndex] += (t.result_amount ?? 0);
+      }
+    }
+    
+    return { totalPnl, count, winRate, weeklyPnl };
+  }, [monthTrades, daysInMonth, startOffset]);
+
   // -- Day Details Logic --
   const selectedDayTrades = selectedDay ? tradesByDay.get(selectedDay) || [] : [];
   
@@ -160,7 +183,7 @@ const CalendarPage: React.FC = () => {
                 <button
                   key={day}
                   type="button"
-                  onClick={() => setSelectedDay(dateStr)}
+                  onClick={() => setSelectedDay(isSelected ? null : dateStr)}
                   className={dayClass}
                 >
                   <span className="cd-n">
@@ -181,11 +204,16 @@ const CalendarPage: React.FC = () => {
         <div className="lg:col-span-1">
           {selectedDay ? (
             <div className="panel-card p-5 sticky top-24">
-              <div className="flex items-center gap-2 mb-1">
-                <CalendarDays className="w-4 h-4 text-primary" />
-                <h3 className="font-semibold text-text text-lg">
-                  {new Date(selectedDay + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-text text-lg capitalize">
+                    {new Date(selectedDay + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </h3>
+                </div>
+                <button onClick={() => setSelectedDay(null)} className="btn btn-ghost btn-sm text-xs px-2 py-1">
+                  Volver
+                </button>
               </div>
 
               {selectedDayTrades.length === 0 ? (
@@ -259,9 +287,58 @@ const CalendarPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="panel-card border-dashed h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center text-textMuted">
-              <CalendarDays className="w-8 h-8 opacity-40 mb-3" />
-              <p className="text-sm">Seleccioná un día en el calendario para ver el detalle de tus operativas.</p>
+            <div className="panel-card p-5 sticky top-24">
+              <div className="flex items-center gap-2 mb-5">
+                <CalendarDays className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-text text-lg capitalize">Resumen del Mes</h3>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Monthly Stats */}
+                <div className="stat-grid grid grid-cols-2 gap-3">
+                  <div className="stat-card p-4">
+                    <div className="sc-lbl mb-1">P&L Neto</div>
+                    <div className={`text-xl font-bold ${monthStats.totalPnl > 0 ? 'text-acc' : monthStats.totalPnl < 0 ? 'text-loss' : 'text-text'}`}>
+                      {monthStats.totalPnl > 0 ? '+' : ''}{fmtCurrency(monthStats.totalPnl)}
+                    </div>
+                  </div>
+                  <div className="stat-card p-4">
+                    <div className="sc-lbl mb-1">Win Rate</div>
+                    <div className="text-xl font-bold text-text">
+                      {monthStats.winRate.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="stat-card p-4 col-span-2 flex items-center justify-between">
+                    <span className="sc-lbl">Operaciones del mes</span>
+                    <span className="text-lg font-semibold text-text">
+                      {monthStats.count} {monthStats.count === 1 ? 'trade' : 'trades'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Weekly Summary */}
+                <div>
+                  <div className="text-xs text-textMuted mb-3 flex items-center gap-1.5 uppercase font-semibold">
+                    <List className="w-3.5 h-3.5" /> P&L por Semana
+                  </div>
+                  <div className="space-y-2">
+                    {monthStats.weeklyPnl.map((pnl, i) => (
+                      <div key={i} className="fund-card p-3 flex items-center justify-between">
+                        <span className="font-medium text-sm text-text">Semana {i + 1}</span>
+                        <span className={`font-semibold text-sm ${pnl > 0 ? 'text-acc' : pnl < 0 ? 'text-loss' : 'text-textMuted'}`}>
+                          {pnl > 0 ? '+' : ''}{fmtCurrency(pnl)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pt-2 border-t border-[var(--line)]">
+                  <p className="text-xs text-textMuted text-center">
+                    Seleccioná un día en el calendario para ver el detalle de sus operativas.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>

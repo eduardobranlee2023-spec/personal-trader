@@ -18,3 +18,29 @@ export type Profile = {
   subscription_expires_at?: string | null;
   last_payment_confirmed_at?: string | null;
 }
+
+export type GoalTargetType = 'capital_total' | 'ganancia_periodo' | 'winrate' | 'personalizada';
+export type GoalStatus = 'en_progreso' | 'completada' | 'vencida';
+
+export type Goal = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  target_type: GoalTargetType;
+  target_value: number;
+  trading_account_id: string | null;
+  deadline: string | null;
+  status: GoalStatus;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export type BibleVerse = {
+  id: string;
+  topic: string;
+  reference: string;
+  text_es: string;
+  created_at: string;
+}
+

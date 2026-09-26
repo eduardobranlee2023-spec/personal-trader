@@ -17,6 +17,7 @@ export type Profile = {
   subscription_status?: string | null;
   subscription_expires_at?: string | null;
   last_payment_confirmed_at?: string | null;
+  plan?: 'basico' | 'mentor' | null;
 }
 
 export type GoalTargetType = 'capital_total' | 'ganancia_periodo' | 'winrate' | 'personalizada';

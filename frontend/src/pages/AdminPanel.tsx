@@ -47,6 +47,9 @@ const AdminPanel: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [renewModalUser, setRenewModalUser] = useState<Profile | null>(null);
   const [exactDateInput, setExactDateInput] = useState('');
+  
+  // Listings Stats
+  const [allListings, setAllListings] = useState<any[]>([]);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -63,7 +66,19 @@ const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchListingsData();
   }, []);
+
+  const fetchListingsData = async () => {
+    const { data: courses } = await supabase.from('courses').select('*, profiles!mentor_user_id(full_name, email)');
+    setAllListings(courses || []);
+  };
+
+  const toggleListingStatus = async (courseId: string, currentStatus: boolean) => {
+    await supabase.from('courses').update({ is_active: !currentStatus }).eq('id', courseId);
+    fetchListingsData();
+  };
+
 
   const handleStatusChange = async (targetUser: Profile, newStatus: AccessStatus) => {
     if (newStatus === 'activa') {
@@ -348,6 +363,53 @@ const AdminPanel: React.FC = () => {
               </table>
             </div>
           )}
+        </div>
+      </main>
+
+      <main className="max-w-7xl mx-auto px-6 py-10 pt-0">
+        <div className="mb-8 mt-10">
+          <h2 className="page-title flex items-center gap-3">
+            <Shield className="w-8 h-8 text-primary" />
+            Moderar Promociones (Aprender)
+          </h2>
+          <p className="page-sub">Activa o desactiva las tarjetas promocionales de los mentores.</p>
+        </div>
+
+        <div className="panel-card max-w-4xl">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {allListings.length === 0 ? <p className="text-textMuted text-sm">No hay promociones publicadas.</p> : (
+              allListings.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-4 border border-white/5 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/5 rounded-md overflow-hidden flex-shrink-0">
+                      {c.cover_image_url ? (
+                        <img src={c.cover_image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-textMuted text-xs font-bold">{c.type.slice(0,3).toUpperCase()}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold flex items-center gap-2">
+                        {c.title}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${c.is_active ? 'bg-win/20 text-win' : 'bg-warn/20 text-warn'}`}>
+                          {c.is_active ? 'Visible' : 'Oculto'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-textMuted mt-1">
+                        Mentor: <span className="text-text">{c.profiles?.full_name || c.profiles?.email}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => toggleListingStatus(c.id, c.is_active)}
+                    className="btn btn-outline btn-sm shrink-0"
+                  >
+                    {c.is_active ? 'Ocultar' : 'Activar'}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </main>
 

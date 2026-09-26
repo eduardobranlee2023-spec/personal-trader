@@ -26,7 +26,8 @@ interface FormData {
   trading_account_id: string;
   withdrawal_date: string;
   amount: string;
-  commission_percentage: string;
+  commission_percentage: string; // % empresa retiene
+  trader_receives: string;       // % trader recibe (100 - commission_percentage)
   method: WithdrawalMethod;
   method_details: string;
   status: WithdrawalStatus;
@@ -38,6 +39,7 @@ const EMPTY_FORM: FormData = {
   withdrawal_date: new Date().toISOString().split('T')[0],
   amount: '',
   commission_percentage: '',
+  trader_receives: '',
   method: 'billetera_virtual',
   method_details: '',
   status: 'procesado',
@@ -84,6 +86,7 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
       withdrawal_date: w.withdrawal_date,
       amount: w.amount.toString(),
       commission_percentage: w.commission_percentage != null ? w.commission_percentage.toString() : '',
+      trader_receives: w.commission_percentage != null ? (100 - w.commission_percentage).toString() : '',
       method: w.method,
       method_details: w.method_details || '',
       status: w.status,
@@ -442,19 +445,53 @@ export const WithdrawalsSection: React.FC<{ onChanged?: () => void | Promise<voi
               {/* Comisión prop firm */}
               <div className="field">
                 <label className="flex items-center gap-1.5">
-                  Comisión de la prop firm (%) 
+                  Reparto de ganancias
                   <span className="text-textMuted font-normal text-xs">(opcional)</span>
                 </label>
-                <select
-                  value={formData.commission_percentage}
-                  onChange={e => setFormData({ ...formData, commission_percentage: e.target.value })}
-                  className="input"
-                >
-                  <option value="">Sin comisión (0% — trader se queda todo)</option>
-                  {Array.from({ length: 100 }, (_, i) => i + 1).map(v => (
-                    <option key={v} value={v}>{v}% — prop firm retiene, trader recibe {100 - v}%</option>
-                  ))}
-                </select>
+                <div className="m-grid">
+                  <div className="field">
+                    <label className="text-xs text-textMuted">Trader recibe (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      className="input mono"
+                      placeholder="ej. 80"
+                      value={formData.trader_receives}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const num = parseFloat(val);
+                        setFormData(prev => ({
+                          ...prev,
+                          trader_receives: val,
+                          commission_percentage: val === '' ? '' : isNaN(num) ? '' : Math.max(0, Math.min(100, 100 - num)).toString()
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="text-xs text-textMuted">Empresa retiene (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      className="input mono"
+                      placeholder="ej. 20"
+                      value={formData.commission_percentage}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const num = parseFloat(val);
+                        setFormData(prev => ({
+                          ...prev,
+                          commission_percentage: val,
+                          trader_receives: val === '' ? '' : isNaN(num) ? '' : Math.max(0, Math.min(100, 100 - num)).toString()
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
                 <p className="sc-sub flex items-center gap-1">
                   <Info className="w-3 h-3 shrink-0" />
                   Typical splits: 70/30, 80/20, 90/10. Dejá vacío si no aplica o ya es el neto.

@@ -17,6 +17,9 @@ import StrategiesPage from './pages/StrategiesPage';
 import FundingPage from './pages/FundingPage';
 import AdminPanel from './pages/AdminPanel';
 import GoalsPage from './pages/GoalsPage';
+import LearnPage from './pages/LearnPage';
+import CourseDetail from './pages/CourseDetail';
+import MentorPanel from './pages/MentorPanel';
 
 const App: React.FC = () => {
   return (
@@ -42,6 +45,9 @@ const App: React.FC = () => {
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/goals" element={<GoalsPage />} />
+              <Route path="/aprender" element={<LearnPage />} />
+              <Route path="/aprender/:courseId" element={<CourseDetail />} />
+              <Route path="/mentor/cursos" element={<MentorPanel />} />
             </Route>
 
             {/* Admin-only routes */}

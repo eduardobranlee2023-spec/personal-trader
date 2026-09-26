@@ -6,7 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import type { TradingAccount, FundedPhase } from '../../contexts/AccountContext';
 import {
   LogOut, ChevronDown, Wallet,
-  LayoutDashboard, BarChart2, CalendarDays, Shield, PieChart, BookOpen, BadgeDollarSign, Target,
+  LayoutDashboard, BarChart2, CalendarDays, Shield, PieChart, BookOpen, BadgeDollarSign, Target, GraduationCap,
   Sun, Moon, Settings, PanelLeftClose, PanelLeftOpen, Menu, X
 } from 'lucide-react';
 import ThemePanel from '../theme/ThemePanel';
@@ -21,6 +21,7 @@ const navItems = [
   { path: '/stats', label: 'Estadísticas', icon: PieChart },
   { path: '/calendar', label: 'Calendario', icon: CalendarDays },
   { path: '/goals', label: 'Metas', icon: Target },
+  { path: '/aprender', label: 'Aprender', icon: GraduationCap },
 ];
 
 const phaseTag: Record<NonNullable<FundedPhase>, string> = {

@@ -80,12 +80,12 @@ const Expired: React.FC = () => {
                 layout: 'vertical',
                 label: 'subscribe'
               }}
-              createSubscription={(data, actions) => {
+              createSubscription={(_data, actions) => {
                 return actions.subscription.create({
                   plan_id: PAYPAL_PLAN_ID
                 });
               }}
-              onApprove={(data, actions) => handleApprove(data)}
+              onApprove={(data, _actions) => handleApprove(data)}
             />
           </PayPalScriptProvider>
           

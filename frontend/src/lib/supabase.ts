@@ -19,6 +19,7 @@ export type Profile = {
   last_payment_confirmed_at?: string | null;
   paypal_subscription_id?: string | null;
   plan?: 'basico' | 'mentor' | null;
+  has_seen_onboarding_tour?: boolean;
 }
 
 export type GoalTargetType = 'capital_total' | 'ganancia_periodo' | 'winrate' | 'personalizada';

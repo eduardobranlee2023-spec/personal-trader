@@ -5,7 +5,7 @@ import type { Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   TrendingUp, Users, LogOut, CheckCircle2, Clock, XCircle,
-  Shield, ChevronDown, X
+  Shield, ChevronDown, X, Award
 } from 'lucide-react';
 
 type AccessStatus = 'pendiente' | 'activa' | 'vencida' | 'cancelada' | 'revocada';
@@ -105,6 +105,28 @@ const AdminPanel: React.FC = () => {
       setMessage({
         type: 'success',
         text: `Acceso de ${targetUser.email} actualizado a "${newStatus}".`,
+      });
+      await fetchUsers();
+    }
+    setUpdatingId(null);
+  };
+
+  const handlePlanChange = async (targetUser: Profile, newPlan: 'basico' | 'mentor') => {
+    if (targetUser.plan === newPlan) return;
+    setUpdatingId(targetUser.id);
+    setMessage(null);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ plan: newPlan })
+      .eq('id', targetUser.id);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Error al actualizar plan: ${error.message}` });
+    } else {
+      setMessage({
+        type: 'success',
+        text: `Plan de ${targetUser.email} actualizado a "${newPlan}".`,
       });
       await fetchUsers();
     }
@@ -263,6 +285,7 @@ const AdminPanel: React.FC = () => {
                   <tr>
                     <th>Usuario</th>
                     <th>Rol</th>
+                    <th>Plan</th>
                     <th>Estado</th>
                     <th>Vencimiento</th>
                     <th style={{ textAlign: 'right' }}>Acción</th>
@@ -292,6 +315,12 @@ const AdminPanel: React.FC = () => {
                         <td>
                           <span className={`tag ${user.role === 'admin' ? 'tag-info' : 'tag-neutral'}`}>
                             {user.role === 'admin' ? '⚡ Admin' : 'Trader'}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={`tag ${user.plan === 'mentor' ? 'tag-win' : 'tag-neutral'} uppercase`}>
+                            {user.plan || 'Básico'}
                           </span>
                         </td>
 
@@ -351,6 +380,14 @@ const AdminPanel: React.FC = () => {
                                       {statusConfig[s].label}
                                     </button>
                                   ))}
+                                  <div className="border-t border-[var(--line)] my-1" />
+                                  <button
+                                    onClick={() => handlePlanChange(user, user.plan === 'mentor' ? 'basico' : 'mentor')}
+                                    className="w-full text-left px-4 py-2.5 text-xs transition hover:bg-[var(--line)] last:rounded-b-xl flex items-center gap-2 text-text"
+                                  >
+                                    <Award className="w-3.5 h-3.5" />
+                                    Convertir a {user.plan === 'mentor' ? 'Básico' : 'Mentor'}
+                                  </button>
                                 </div>
                               </div>
                             )}

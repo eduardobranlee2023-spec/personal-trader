@@ -103,6 +103,10 @@ serve(async (req) => {
 
     const today = new Date();
     
+    // Identificar el plan por el plan_id que viene en el evento
+    const isMentor = resource.plan_id === 'P-0N777076BT7880332NK65JIQ';
+    const assignedPlan = isMentor ? 'mentor' : 'basico';
+    
     if (eventType === 'BILLING.SUBSCRIPTION.ACTIVATED') {
       // Mes de prueba. Activamos y damos 1 mes de acceso desde hoy.
       const expires = new Date();
@@ -111,6 +115,7 @@ serve(async (req) => {
       await supabase.from('profiles').update({
         access_status: 'activa',
         subscription_expires_at: expires.toISOString(),
+        plan: assignedPlan
       }).eq('id', profile.id);
       
     } else if (eventType === 'PAYMENT.SALE.COMPLETED') {
@@ -135,13 +140,15 @@ serve(async (req) => {
     } else if (eventType === 'BILLING.SUBSCRIPTION.SUSPENDED') {
       // Suspendido por falta de pago (después de reintentos)
       await supabase.from('profiles').update({
-        access_status: 'vencida'
+        access_status: 'vencida',
+        plan: 'basico' // Pierde el rol de mentor
       }).eq('id', profile.id);
       
     } else if (eventType === 'BILLING.SUBSCRIPTION.CANCELLED' || eventType === 'BILLING.SUBSCRIPTION.EXPIRED') {
       // Cancelado o Expirado
       await supabase.from('profiles').update({
-        access_status: eventType === 'BILLING.SUBSCRIPTION.CANCELLED' ? 'cancelada' : 'vencida'
+        access_status: eventType === 'BILLING.SUBSCRIPTION.CANCELLED' ? 'cancelada' : 'vencida',
+        plan: 'basico' // Pierde el rol de mentor al cancelar
       }).eq('id', profile.id);
     }
 

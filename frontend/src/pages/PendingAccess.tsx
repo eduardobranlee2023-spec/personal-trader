@@ -34,12 +34,18 @@ const PendingAccess: React.FC = () => {
               <Clock className="w-10 h-10" />
             </div>
 
-            <h2 className="page-title mb-3">Acceso pendiente de activación</h2>
+            <h2 className="page-title mb-3">
+              {profile?.access_status === 'vencida' ? 'Membresía Vencida' : 
+               profile?.access_status === 'cancelada' ? 'Membresía Cancelada' :
+               profile?.access_status === 'revocada' ? 'Acceso No Disponible' :
+               'Sin membresía activa'}
+            </h2>
 
             <p className="page-sub leading-relaxed mb-6">
-              Tu cuenta fue creada correctamente, pero el acceso al dashboard todavía
-              no fue activado. El administrador revisará tu pago y te dará acceso
-              manualmente en breve.
+              {profile?.access_status === 'vencida' ? 'Tu membresía venció. Renová para seguir usando la app.' : 
+               profile?.access_status === 'cancelada' ? 'Cancelaste tu membresía. Podés reactivarla cuando quieras.' :
+               profile?.access_status === 'revocada' ? 'Tu acceso no está disponible. Contactá al soporte.' :
+               'Todavía no tenés una membresía activa. Suscribite o contactá al admin para empezar.'}
             </p>
 
             <div className="panel-card p-5 mb-8 text-left space-y-3">
@@ -52,13 +58,13 @@ const PendingAccess: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span className="tag tag-warn shrink-0" style={{ width: 8, height: 8, padding: 0, minWidth: 8 }} />
                 <span className="text-sm text-textMuted">
-                  Estado: <span className="tag tag-warn">Pendiente de activación</span>
+                  Estado: <span className="tag tag-warn uppercase">{profile?.access_status || 'Pendiente'}</span>
                 </span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="tag tag-warn shrink-0" style={{ width: 8, height: 8, padding: 0, minWidth: 8 }} />
                 <span className="text-sm text-textMuted">
-                  Acceso: <span className="text-text font-medium">De por vida (pago único)</span>
+                  Modelo: <span className="text-text font-medium">Membresía mensual</span>
                 </span>
               </div>
             </div>

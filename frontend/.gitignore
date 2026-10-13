@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+desktop-build/
+public/downloads/personal-trader-linux.AppImage
 
 # Editor directories and files
 .vscode/*

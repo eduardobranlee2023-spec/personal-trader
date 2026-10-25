@@ -976,6 +976,19 @@ select.input {
   color: var(--red);
 }
 
+.cal-day.non-operational {
+  background: rgba(255, 194, 75, 0.07);
+  border-color: rgba(255, 194, 75, 0.42);
+}
+
+.cal-day .cd-status {
+  align-self: flex-start;
+  color: var(--amb);
+  font-family: var(--disp);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
 .cal-day.today {
   outline: 2px solid var(--acc);
   outline-offset: 1px;

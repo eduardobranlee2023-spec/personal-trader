@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import TradeForm from '../components/trades/TradeForm';
 import { useTrades, useStrategies } from '../hooks/useTrades';
 import { useAccounts } from '../contexts/AccountContext';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import type { Trade } from '../hooks/useTrades';
-import { CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Target, Info, Pencil, List } from 'lucide-react';
+import { Ban, CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Target, Info, Pencil, List } from 'lucide-react';
 
 const fmtCurrency = (val: number | null) => {
   if (val == null) return '—';
@@ -12,6 +14,7 @@ const fmtCurrency = (val: number | null) => {
 };
 
 const CalendarPage: React.FC = () => {
+  const { user } = useAuth();
   const { selectedAccountId, refresh: refreshAccounts } = useAccounts();
   const [strategyFilter, setStrategyFilter] = useState('');
   const { trades, refresh: refreshTrades } = useTrades({ 
@@ -29,6 +32,13 @@ const CalendarPage: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // 'YYYY-MM-DD'
   const [showForm, setShowForm] = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [nonOperationalDays, setNonOperationalDays] = useState<Set<string>>(() => new Set());
+  const [isLoadingNonOperationalDays, setIsLoadingNonOperationalDays] = useState(true);
+  const [isSavingNonOperationalDay, setIsSavingNonOperationalDay] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [streakType, setStreakType] = useState<'ganadora' | 'perdedora'>('ganadora');
+  const [streakPeriod, setStreakPeriod] = useState<'mes' | 'semana'>('mes');
+  const [selectedWeek, setSelectedWeek] = useState(0);
 
   // -- Calendar Logic --
   const year = currentDate.getFullYear();
@@ -39,6 +49,48 @@ const CalendarPage: React.FC = () => {
   
   // Adjust so Monday is the first day of the week
   const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+  const weeksCount = Math.ceil((daysInMonth + startOffset) / 7);
+  const today = new Date();
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  useEffect(() => {
+    if (selectedWeek >= weeksCount) setSelectedWeek(weeksCount - 1);
+  }, [selectedWeek, weeksCount]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    const fetchNonOperationalDays = async () => {
+      if (!user) {
+        setNonOperationalDays(new Set());
+        setIsLoadingNonOperationalDays(false);
+        return;
+      }
+
+      setIsLoadingNonOperationalDays(true);
+      setCalendarError(null);
+      setNonOperationalDays(new Set());
+      const firstDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+      const { data, error } = await supabase
+        .from('calendar_non_operational_days')
+        .select('trade_date')
+        .eq('user_id', user.id)
+        .gte('trade_date', firstDate)
+        .lte('trade_date', lastDate);
+
+      if (!isCurrent) return;
+      if (error) {
+        setCalendarError(`No se pudieron cargar los días no operativos: ${error.message}`);
+      } else {
+        setNonOperationalDays(new Set(data.map(day => day.trade_date)));
+      }
+      setIsLoadingNonOperationalDays(false);
+    };
+
+    void fetchNonOperationalDays();
+    return () => { isCurrent = false; };
+  }, [user, year, month, daysInMonth]);
 
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
@@ -67,10 +119,20 @@ const CalendarPage: React.FC = () => {
   const monthStats = useMemo(() => {
     const totalPnl = monthTrades.reduce((sum, t) => sum + (t.result_amount ?? 0), 0);
     const count = monthTrades.length;
-    const wins = monthTrades.filter(t => (t.result_amount ?? 0) > 0).length;
-    const winRate = count > 0 ? (wins / count) * 100 : 0;
-    
-    const weeksCount = Math.ceil((daysInMonth + startOffset) / 7);
+    const pnlByDay = new Map<string, number>();
+    for (const trade of monthTrades) {
+      if (trade.result_amount == null) continue;
+      pnlByDay.set(trade.trade_date, (pnlByDay.get(trade.trade_date) ?? 0) + (trade.result_amount ?? 0));
+    }
+    const operatingDayResults = Array.from(pnlByDay.entries())
+      .filter(([date]) => !nonOperationalDays.has(date))
+      .map(([date, pnl]) => ({ date, pnl }));
+    const operatingDays = operatingDayResults.length;
+    const winningDays = operatingDayResults.filter(day => day.pnl > 0).length;
+    const losingDays = operatingDayResults.filter(day => day.pnl < 0).length;
+    const winRate = operatingDays > 0 ? (winningDays / operatingDays) * 100 : 0;
+    const lossRate = operatingDays > 0 ? (losingDays / operatingDays) * 100 : 0;
+
     const weeklyPnl = Array(weeksCount).fill(0);
     for (const t of monthTrades) {
       const day = parseInt(t.trade_date.split('-')[2], 10);
@@ -80,8 +142,28 @@ const CalendarPage: React.FC = () => {
       }
     }
     
-    return { totalPnl, count, winRate, weeklyPnl };
-  }, [monthTrades, daysInMonth, startOffset]);
+    return { totalPnl, count, operatingDays, winningDays, losingDays, winRate, lossRate, weeklyPnl, operatingDayResults };
+  }, [monthTrades, weeksCount, startOffset, nonOperationalDays]);
+
+  const streakStats = useMemo(() => {
+    const periodDays = monthStats.operatingDayResults
+      .filter(({ date }) => streakPeriod !== 'semana' || Math.floor((Number(date.slice(-2)) + startOffset - 1) / 7) === selectedWeek)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const isStreakDay = (pnl: number) => streakType === 'ganadora' ? pnl > 0 : pnl < 0;
+    let currentStreak = 0;
+    let longestStreak = 0;
+
+    for (const day of periodDays) {
+      if (isStreakDay(day.pnl)) {
+        currentStreak++;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    return { longestStreak, periodDays: periodDays.length };
+  }, [monthStats.operatingDayResults, selectedWeek, startOffset, streakPeriod, streakType]);
 
   // -- Day Details Logic --
   const selectedDayTrades = selectedDay ? tradesByDay.get(selectedDay) || [] : [];
@@ -110,6 +192,33 @@ const CalendarPage: React.FC = () => {
   const selectedDayStats = calcDayStats(selectedDayTrades);
   const isPositiveDay = selectedDayStats.totalPnl > 0;
   const isNegativeDay = selectedDayStats.totalPnl < 0;
+  const isSelectedDayNonOperational = selectedDay ? nonOperationalDays.has(selectedDay) : false;
+
+  const toggleSelectedDayNonOperational = async () => {
+    if (!selectedDay || !user || isSavingNonOperationalDay) return;
+    setIsSavingNonOperationalDay(true);
+    setCalendarError(null);
+
+    const result = isSelectedDayNonOperational
+      ? await supabase.from('calendar_non_operational_days')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('trade_date', selectedDay)
+      : await supabase.from('calendar_non_operational_days')
+        .insert({ user_id: user.id, trade_date: selectedDay });
+
+    if (result.error) {
+      setCalendarError(`No se pudo actualizar el día: ${result.error.message}`);
+    } else {
+      setNonOperationalDays(previous => {
+        const next = new Set(previous);
+        if (isSelectedDayNonOperational) next.delete(selectedDay);
+        else next.add(selectedDay);
+        return next;
+      });
+    }
+    setIsSavingNonOperationalDay(false);
+  };
 
   const handleSaved = () => {
     refreshTrades();
@@ -168,7 +277,8 @@ const CalendarPage: React.FC = () => {
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const dayTrades = tradesByDay.get(dateStr) || [];
               const isSelected = selectedDay === dateStr;
-              const isToday = dateStr === new Date().toISOString().split('T')[0];
+              const isToday = dateStr === todayDate;
+              const isNonOperational = nonOperationalDays.has(dateStr);
               
               const stats = calcDayStats(dayTrades);
               let dayClass = 'cal-day clickable';
@@ -176,6 +286,7 @@ const CalendarPage: React.FC = () => {
                 if (stats.totalPnl > 0) dayClass += ' up';
                 else if (stats.totalPnl < 0) dayClass += ' dn';
               }
+              if (isNonOperational) dayClass += ' non-operational';
               if (isToday) dayClass += ' today';
               if (isSelected) dayClass += ' selected';
 
@@ -190,6 +301,7 @@ const CalendarPage: React.FC = () => {
                     {day}
                     {dayTrades.length > 0 && <span className="cd-count">T:{dayTrades.length}</span>}
                   </span>
+                  {isNonOperational && <span className="cd-status">No operativo</span>}
                   {dayTrades.length > 0 && (
                     <span className="cd-v">
                       {stats.totalPnl > 0 ? '+' : ''}{fmtCurrency(stats.totalPnl)}
@@ -215,6 +327,21 @@ const CalendarPage: React.FC = () => {
                   Volver
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => void toggleSelectedDayNonOperational()}
+                disabled={isSavingNonOperationalDay || isLoadingNonOperationalDays}
+                className={`btn btn-sm w-full justify-center mb-3 ${isSelectedDayNonOperational ? 'btn-primary' : 'btn-ghost'}`}
+              >
+                <Ban className="w-4 h-4" />
+                {isSavingNonOperationalDay ? 'Guardando...' : isSelectedDayNonOperational ? 'Marcar como operativo' : 'Día no operativo'}
+              </button>
+              {isSelectedDayNonOperational && (
+                <p className="text-xs text-textMuted mb-3">
+                  Se excluye de las tasas y rachas. Las operaciones registradas y su P&L se conservan.
+                </p>
+              )}
 
               {selectedDayTrades.length === 0 ? (
                 <div className="py-10 text-center text-textMuted text-sm">
@@ -303,10 +430,14 @@ const CalendarPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="stat-card p-4">
-                    <div className="sc-lbl mb-1">Win Rate</div>
-                    <div className="text-xl font-bold text-text">
-                      {monthStats.winRate.toFixed(1)}%
-                    </div>
+                    <div className="sc-lbl mb-1">Win Rate (días)</div>
+                    <div className="text-xl font-bold text-acc">{monthStats.winRate.toFixed(1)}%</div>
+                    <div className="sc-sub">{monthStats.winningDays} de {monthStats.operatingDays} días operativos</div>
+                  </div>
+                  <div className="stat-card p-4">
+                    <div className="sc-lbl mb-1">Lost Rate (días)</div>
+                    <div className="text-xl font-bold text-loss">{monthStats.lossRate.toFixed(1)}%</div>
+                    <div className="sc-sub">{monthStats.losingDays} de {monthStats.operatingDays} días operativos</div>
                   </div>
                   <div className="stat-card p-4 col-span-2 flex items-center justify-between">
                     <span className="sc-lbl">Operaciones del mes</span>
@@ -314,6 +445,42 @@ const CalendarPage: React.FC = () => {
                       {monthStats.count} {monthStats.count === 1 ? 'trade' : 'trades'}
                     </span>
                   </div>
+                </div>
+
+                <div className="stat-card p-4">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div>
+                      <div className="sc-lbl">Racha de operativas</div>
+                      <div className="font-semibold text-text mt-1">
+                        {streakType === 'ganadora' ? 'Ganadora' : 'Perdedora'}: {streakStats.longestStreak} {streakStats.longestStreak === 1 ? 'día' : 'días'}
+                      </div>
+                    </div>
+                    <div className="seg" style={{ width: 'auto' }}>
+                      <button type="button" className={streakType === 'ganadora' ? 'on-acc' : ''} onClick={() => setStreakType('ganadora')}>Ganadora</button>
+                      <button type="button" className={streakType === 'perdedora' ? 'on-sell' : ''} onClick={() => setStreakType('perdedora')}>Perdedora</button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="seg">
+                      <button type="button" className={streakPeriod === 'mes' ? 'on-acc' : ''} onClick={() => setStreakPeriod('mes')}>Mes</button>
+                      <button type="button" className={streakPeriod === 'semana' ? 'on-acc' : ''} onClick={() => setStreakPeriod('semana')}>Semana</button>
+                    </div>
+                    {streakPeriod === 'semana' && (
+                      <select
+                        value={selectedWeek}
+                        onChange={event => setSelectedWeek(Number(event.target.value))}
+                        className="input"
+                        aria-label="Semana para calcular la racha"
+                      >
+                        {Array.from({ length: weeksCount }, (_, index) => (
+                          <option key={index} value={index}>Semana {index + 1}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <p className="sc-sub">
+                    {streakStats.periodDays} días operativos considerados; los días no operativos se omiten.
+                  </p>
                 </div>
 
                 {/* Weekly Summary */}
@@ -332,7 +499,7 @@ const CalendarPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="pt-2 border-t border-[var(--line)]">
                   <p className="text-xs text-textMuted text-center">
                     Seleccioná un día en el calendario para ver el detalle de sus operativas.
@@ -343,6 +510,12 @@ const CalendarPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {calendarError && (
+        <div className="alert alert-err mt-4" role="alert">
+          {calendarError}
+        </div>
+      )}
 
       {showForm && (
         <TradeForm

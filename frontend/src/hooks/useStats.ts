@@ -72,6 +72,8 @@ export interface StatsResult {
   losingDays: number;
   bestMonth: { label: string; pnl: number } | null;
   worstMonth: { label: string; pnl: number } | null;
+  bestWeek: { label: string; pnl: number } | null;
+  worstWeek: { label: string; pnl: number } | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -378,6 +380,31 @@ export function useStats(
       ? monthEntries.reduce((a, b) => b.pnl < a.pnl ? b : a)
       : null;
 
+    // ── Mejor / Peor semana (lunes a domingo, todo el historial) ───────────
+    const weekMap = new Map<string, number>();
+    for (const t of effectiveTrades) {
+      if (!t.trade_date) continue;
+      const tradeDate = new Date(`${t.trade_date}T00:00:00Z`);
+      const daysSinceMonday = (tradeDate.getUTCDay() + 6) % 7;
+      tradeDate.setUTCDate(tradeDate.getUTCDate() - daysSinceMonday);
+      const weekStart = tradeDate.toISOString().slice(0, 10);
+      weekMap.set(weekStart, (weekMap.get(weekStart) ?? 0) + (t.result_amount ?? 0));
+    }
+    const weekEntries = Array.from(weekMap.entries()).map(([weekStart, pnl]) => {
+      const start = new Date(`${weekStart}T00:00:00Z`);
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 6);
+      const startLabel = start.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+      const endLabel = end.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      return { label: `${startLabel} – ${endLabel}`, pnl };
+    });
+    const bestWeek = weekEntries.length > 0
+      ? weekEntries.reduce((a, b) => b.pnl > a.pnl ? b : a)
+      : null;
+    const worstWeek = weekEntries.length > 0
+      ? weekEntries.reduce((a, b) => b.pnl < a.pnl ? b : a)
+      : null;
+
     return {
       periodTrades, allTrades: trades,
       balancePoints,
@@ -396,6 +423,7 @@ export function useStats(
       recoveryFactor,
       winningDays, losingDays,
       bestMonth, worstMonth,
+      bestWeek, worstWeek,
     };
   }, [trades, accounts, selectedAccountId, period, ALL_ACCOUNTS_ID]);
 }

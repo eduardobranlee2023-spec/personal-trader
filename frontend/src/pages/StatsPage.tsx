@@ -387,7 +387,7 @@ const StatsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="stat-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-4">
+          <div className="stat-grid grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mt-4">
             <StatCard
               label="Profit Factor"
               value={stats.profitFactor !== null ? stats.profitFactor.toFixed(2) : '∞'}
@@ -436,6 +436,22 @@ const StatsPage: React.FC = () => {
               sub={stats.worstMonth?.label ?? 'Sin datos'}
               accent={stats.worstMonth !== null && stats.worstMonth.pnl >= 0}
               negative={stats.worstMonth !== null && stats.worstMonth.pnl < 0}
+              icon={<TrendingDown className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Mejor Semana"
+              value={stats.bestWeek ? fmtMoney(stats.bestWeek.pnl, true) : '—'}
+              sub={stats.bestWeek?.label ?? 'Sin datos'}
+              accent={stats.bestWeek !== null && stats.bestWeek.pnl >= 0}
+              negative={stats.bestWeek !== null && stats.bestWeek.pnl < 0}
+              icon={<TrendingUp className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Peor Semana"
+              value={stats.worstWeek ? fmtMoney(stats.worstWeek.pnl, true) : '—'}
+              sub={stats.worstWeek?.label ?? 'Sin datos'}
+              accent={stats.worstWeek !== null && stats.worstWeek.pnl >= 0}
+              negative={stats.worstWeek !== null && stats.worstWeek.pnl < 0}
               icon={<TrendingDown className="w-5 h-5 text-primary" />}
             />
           </div>

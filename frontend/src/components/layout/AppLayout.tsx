@@ -7,7 +7,7 @@ import type { TradingAccount, FundedPhase } from '../../contexts/AccountContext'
 import {
   LogOut, ChevronDown, Wallet,
   LayoutDashboard, BarChart2, CalendarDays, Shield, PieChart, BookOpen, BadgeDollarSign, Target, GraduationCap,
-  Sun, Moon, Settings, PanelLeftClose, PanelLeftOpen, Menu, X
+  Sun, Moon, Settings, PanelLeftClose, PanelLeftOpen, Menu, X, ExternalLink
 } from 'lucide-react';
 import ThemePanel from '../theme/ThemePanel';
 import BrandMark from '../brand/BrandMark';
@@ -84,6 +84,15 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
+  };
+
+  const isDesktopApp = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
+
+  const handleContinueInBrowser = () => {
+    const url = 'https://personaltrader.vercel.app';
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const selectedLabel =
@@ -240,6 +249,17 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   </div>
                 )}
               </div>
+
+              {isDesktopApp && (
+                <button
+                  onClick={handleContinueInBrowser}
+                  title="Continuar en el navegador"
+                  className="btn btn-ghost btn-sm hidden sm:inline-flex items-center gap-2"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Continuar en el navegador
+                </button>
+              )}
 
               {/* Settings */}
               <button

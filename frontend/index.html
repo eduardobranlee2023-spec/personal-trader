@@ -270,7 +270,8 @@ footer{border-top:1px solid var(--line);padding:30px 0;background:rgba(10,15,22,
     </nav>
     <div class="nav-cta">
       <span class="nav-status"><i></i>mercado abierto</span>
-      <a class="btn btn-primary btn-sm" href="/login">Entrar a la app</a>
+      <a id="desktop-install-btn" class="btn btn-primary btn-sm" href="/login">Instalar Personal Trader</a>
+      <a class="btn btn-ghost btn-sm" href="/login">Continuar en navegador</a>
       <button class="burger" id="burger" aria-label="Menú"><span></span><span></span></button>
     </div>
   </div>
@@ -290,9 +291,9 @@ footer{border-top:1px solid var(--line);padding:30px 0;background:rgba(10,15,22,
       </h1>
       <p class="lead">Registrá y analizá tus <span class="rot" id="rot">operaciones</span> en tiempo real: cuentas reales y fondeadas, estrategias, retiros y estadísticas en un solo panel <b>oscuro, veloz y 100% tuyo</b>.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" data-magnet href="/login">Entrar a la app
+        <a id="desktop-install-btn-hero" class="btn btn-primary" data-magnet href="/login">Instalar Personal Trader
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
-        <a class="btn btn-ghost" data-magnet href="#modulos">Explorar módulos</a>
+        <a id="browser-continue-btn" class="btn btn-ghost" data-magnet href="/login">Continuar en navegador</a>
       </div>
       <div class="hero-meta mono">$ ssh admin@<a href="/login">personaltrader.vercel.app</a> · sin configuración</div>
     </div>
@@ -435,8 +436,9 @@ footer{border-top:1px solid var(--line);padding:30px 0;background:rgba(10,15,22,
     <h2><span id="ctaScr" data-text="TU PRÓXIMO TRADE">TU PRÓXIMO TRADE</span><br><span class="g">EMPIEZA ACÁ.</span></h2>
     <p>Entrá ahora a Personal Trader y convertí tu operativa en datos, y tus datos en disciplina.</p>
     <div class="cta-row" style="opacity:1;transform:none;justify-content:center">
-      <a class="btn btn-primary" data-magnet href="/login">Entrar a Personal Trader
+      <a id="desktop-install-btn-footer" class="btn btn-primary" data-magnet href="/login">Instalar Personal Trader
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+      <a id="browser-continue-btn-footer" class="btn btn-ghost" data-magnet href="/login">Continuar en navegador</a>
     </div>
     <div class="cta-note">$ open <a href="/login">personaltrader.vercel.app</a> ↗</div>
   </div>
@@ -748,6 +750,35 @@ if(term&&!RM&&window.matchMedia('(pointer:fine)').matches){
     term.style.transform='rotateY(0) rotateX(0)';
   });
 }
+
+/* ============ instalación de la app de escritorio ============ */
+var desktopProtocol='personaltrader://open';
+var desktopDownloadUrl='https://github.com/eduardobranlee2023-spec/personal-trader/releases/latest/download/personal-trader-linux.AppImage';
+function tryDesktopInstall(event){
+  if(event){event.preventDefault();}
+  if(!desktopDownloadUrl){
+    window.location.href='/login';
+    return;
+  }
+  var started=Date.now();
+  var iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.setAttribute('src',desktopProtocol);
+  document.body.appendChild(iframe);
+  setTimeout(function(){
+    if(Date.now()-started < 1200){
+      window.location.href=desktopDownloadUrl;
+    }
+  },900);
+}
+['desktop-install-btn','desktop-install-btn-hero','desktop-install-btn-footer'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el){el.addEventListener('click',tryDesktopInstall);}
+});
+['browser-continue-btn','browser-continue-btn-footer'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el){el.addEventListener('click',function(event){event.preventDefault();window.location.href='/login';});}
+});
 })();
 </script>
 </body>

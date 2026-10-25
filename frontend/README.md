@@ -30,3 +30,19 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Ejecutar como app de escritorio
+
+```bash
+cd frontend
+npm install
+npm run dev:desktop
+```
+
+Para generar un instalable:
+
+```bash
+npm run desktop:build
+```
+
+El AppImage se genera en `desktop-build/`. Para distribuirlo, adjuntalo a un GitHub Release con el nombre `personal-trader-linux.AppImage`; el botón de instalación de la web descarga el asset del último release. Los archivos de compilación no se versionan.

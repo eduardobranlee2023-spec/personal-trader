@@ -1,13 +1,21 @@
 {
   "name": "frontend",
+  "description": "Personal Trader desktop and web application",
+  "author": "eduardobranlee2023-spec",
   "private": true,
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eduardobranlee2023-spec/personal-trader.git"
+  },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview --host 127.0.0.1",
+    "dev:desktop": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "desktop:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@paypal/react-paypal-js": "^10.5.1",
@@ -25,10 +33,41 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.4",
+    "concurrently": "^9.1.2",
+    "electron": "^31.7.1",
+    "electron-builder": "^24.13.0",
     "oxlint": "^1.75.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "wait-on": "^8.0.1"
+  },
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.personaltrader.desktop",
+    "productName": "Personal Trader",
+    "directories": {
+      "output": "desktop-build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "publish": null,
+    "icon": "build/icon.png",
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    }
   }
 }

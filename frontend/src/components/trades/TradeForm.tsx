@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../contexts/AccountContext';
 import { useStrategies } from '../../hooks/useTrades';
 import type { Trade, TradeSession, TradeDirection, TradeStatus } from '../../hooks/useTrades';
 import type { FundedPhase } from '../../contexts/AccountContext';
-import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2, Search } from 'lucide-react';
+import { createTradeImageUrl, getTradeImagePath, MAX_TRADE_IMAGE_SIZE, removeTradeImageIfUnused, TRADE_IMAGE_PREFIX, uploadTradeImage } from '../../lib/tradeImages';
+import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2, Search, ImagePlus } from 'lucide-react';
 
 type Props = {
   trade?: Trade | null;
@@ -84,7 +85,12 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [zone, setZone] = useState(trade?.zone ?? '');
   const [direction, setDirection] = useState<TradeDirection>(trade?.direction ?? 'compra');
   const [entryReason, setEntryReason] = useState(trade?.entry_reason ?? '');
-  const [tradingviewLink, setTradingviewLink] = useState(trade?.tradingview_link ?? '');
+  const existingImagePath = getTradeImagePath(trade?.tradingview_link ?? null);
+  const [tradingviewLink, setTradingviewLink] = useState(existingImagePath ? '' : trade?.tradingview_link ?? '');
+  const [chartImage, setChartImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
   const [strategyId, setStrategyId] = useState(trade?.strategy_id ?? '');
   const [riskReward, setRiskReward] = useState(trade?.risk_reward ?? '');
   const [status, setStatus] = useState<TradeStatus>(trade?.status ?? 'en curso');
@@ -94,6 +100,30 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (!chartImage) {
+      setImagePreviewUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(chartImage);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [chartImage]);
+
+  useEffect(() => {
+    if (!existingImagePath) return;
+    let isCurrent = true;
+
+    void createTradeImageUrl(existingImagePath).then(({ url, error: urlError }) => {
+      if (!isCurrent) return;
+      if (urlError) setError(`No se pudo cargar la imagen guardada: ${urlError.message}`);
+      else setExistingImageUrl(url);
+    });
+
+    return () => { isCurrent = false; };
+  }, [existingImagePath]);
 
   const getAmounts = (accId: string): AccountAmounts =>
     accountAmounts[accId] ?? { investment: '', result: '' };
@@ -115,8 +145,12 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       setError('El activo es obligatorio.');
       return;
     }
-    if (tradingviewLink && !tradingviewLink.startsWith('http')) {
+    if (tradingviewLink && !/^https?:\/\//i.test(tradingviewLink)) {
       setError('El enlace de TradingView debe comenzar con http:// o https://');
+      return;
+    }
+    if (chartImage && chartImage.size > MAX_TRADE_IMAGE_SIZE) {
+      setError('La imagen no puede superar los 10 MB.');
       return;
     }
     if (riskReward && !/^1:\d+(\.\d+)?$/.test(riskReward)) {
@@ -127,73 +161,108 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
     setIsSaving(true);
     setError('');
 
-    const basePayload = {
-      user_id: user!.id,
-      strategy_id: strategyId || null,
-      trade_date: tradeDate,
-      asset: asset.trim().toUpperCase(),
-      session,
-      timeframe,
-      zone: zone.trim() || null,
-      direction,
-      entry_reason: entryReason.trim() || null,
-      tradingview_link: tradingviewLink.trim() || null,
-      commission_percentage: null,
-      risk_reward: riskReward.trim() || null,
-      notes: notes.trim() || null,
-    };
+    let uploadedImagePath: string | null = null;
+    try {
+      let imageValue = tradingviewLink.trim() || (
+        existingImagePath && !removeExistingImage ? trade!.tradingview_link : null
+      );
 
-    const getAccountSpecificData = (accId: string) => {
-      const amounts = getAmounts(accId);
-      const investVal = amounts.investment !== '' ? parseFloat(amounts.investment) : 0;
-      const resVal = amounts.result !== '' ? parseFloat(amounts.result) : null;
-
-      let finalStatus: TradeStatus = status;
-      let result_percentage: number | null = null;
-
-      if (resVal !== null) {
-        if (resVal > 0) finalStatus = 'ganada';
-        else if (resVal < 0) finalStatus = 'perdida';
-        else finalStatus = 'breakeven';
-
-        const account = accounts.find(a => a.id === accId);
-        if (account && account.initial_balance && !isEdit) {
-          const pct = (resVal / account.initial_balance) * 100;
-          result_percentage = parseFloat(pct.toFixed(2));
-        } else if (isEdit && trade?.result_percentage != null) {
-          result_percentage = trade.result_percentage;
+      if (chartImage) {
+        const { path, error: uploadError } = await uploadTradeImage(chartImage, user!.id);
+        if (uploadError || !path) {
+          setError(`No se pudo subir la imagen: ${uploadError?.message ?? 'error desconocido'}`);
+          return;
         }
+        uploadedImagePath = path;
+        imageValue = `${TRADE_IMAGE_PREFIX}${path}`;
       }
 
-      return {
-        trading_account_id: accId,
-        investment_amount: investVal,
-        result_amount: resVal,
-        result_percentage,
-        status: finalStatus,
+      const basePayload = {
+        user_id: user!.id,
+        strategy_id: strategyId || null,
+        trade_date: tradeDate,
+        asset: asset.trim().toUpperCase(),
+        session,
+        timeframe,
+        zone: zone.trim() || null,
+        direction,
+        entry_reason: entryReason.trim() || null,
+        tradingview_link: imageValue || null,
+        commission_percentage: null,
+        risk_reward: riskReward.trim() || null,
+        notes: notes.trim() || null,
       };
-    };
 
-    let err;
-    if (isEdit) {
-      const payload = { ...basePayload, ...getAccountSpecificData(accountIds[0]) };
-      ({ error: err } = await supabase.from('trades').update(payload).eq('id', trade!.id));
-    } else {
-      const trade_group_id = accountIds.length > 1 ? crypto.randomUUID() : null;
-      const payloads = accountIds.map(accId => ({
-        ...basePayload,
-        ...getAccountSpecificData(accId),
-        trade_group_id,
-      }));
-      ({ error: err } = await supabase.from('trades').insert(payloads));
-    }
+      const getAccountSpecificData = (accId: string) => {
+        const amounts = getAmounts(accId);
+        const investVal = amounts.investment !== '' ? parseFloat(amounts.investment) : 0;
+        const resVal = amounts.result !== '' ? parseFloat(amounts.result) : null;
 
-    if (err) setError(err.message);
-    else {
+        let finalStatus: TradeStatus = status;
+        let result_percentage: number | null = null;
+
+        if (resVal !== null) {
+          if (resVal > 0) finalStatus = 'ganada';
+          else if (resVal < 0) finalStatus = 'perdida';
+          else finalStatus = 'breakeven';
+
+          const account = accounts.find(a => a.id === accId);
+          if (account && account.initial_balance && !isEdit) {
+            const pct = (resVal / account.initial_balance) * 100;
+            result_percentage = parseFloat(pct.toFixed(2));
+          } else if (isEdit && trade?.result_percentage != null) {
+            result_percentage = trade.result_percentage;
+          }
+        }
+
+        return {
+          trading_account_id: accId,
+          investment_amount: investVal,
+          result_amount: resVal,
+          result_percentage,
+          status: finalStatus,
+        };
+      };
+
+      let saveError;
+      if (isEdit) {
+        const payload = { ...basePayload, ...getAccountSpecificData(accountIds[0]) };
+        ({ error: saveError } = await supabase.from('trades').update(payload).eq('id', trade!.id));
+      } else {
+        const trade_group_id = accountIds.length > 1 ? crypto.randomUUID() : null;
+        const payloads = accountIds.map(accId => ({
+          ...basePayload,
+          ...getAccountSpecificData(accId),
+          trade_group_id,
+        }));
+        ({ error: saveError } = await supabase.from('trades').insert(payloads));
+      }
+
+      if (saveError) {
+        if (uploadedImagePath) {
+          const { error: cleanupError } = await supabase.storage.from('trade-images').remove([uploadedImagePath]);
+          if (cleanupError) console.error('No se pudo limpiar la imagen subida tras fallar el registro:', cleanupError);
+        }
+        setError(saveError.message);
+        return;
+      }
+
+      if (existingImagePath && imageValue !== trade!.tradingview_link) {
+        const removeError = await removeTradeImageIfUnused(existingImagePath);
+        if (removeError) console.error('No se pudo eliminar la imagen anterior de la operativa:', removeError);
+      }
+
       onSaved();
       onClose();
+    } catch (saveError) {
+      if (uploadedImagePath) {
+        const { error: cleanupError } = await supabase.storage.from('trade-images').remove([uploadedImagePath]);
+        if (cleanupError) console.error('No se pudo limpiar la imagen subida tras fallar el registro:', cleanupError);
+      }
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la operación.');
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
   const handleDelete = async () => {
@@ -207,6 +276,10 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       setError(err.message);
       setIsDeleting(false);
     } else {
+      if (existingImagePath) {
+        const removeError = await removeTradeImageIfUnused(existingImagePath);
+        if (removeError) console.error('No se pudo eliminar la imagen de la operativa:', removeError);
+      }
       onSaved();
       onClose();
     }
@@ -478,7 +551,57 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
           </div>
 
           <div className="field">
-            <label>Link de TradingView (opcional)</label>
+            <label>Imagen de la operativa (opcional)</label>
+            <label className="btn btn-ghost btn-sm w-fit cursor-pointer">
+              <ImagePlus className="w-4 h-4" />
+              {chartImage ? 'Cambiar imagen' : 'Subir imagen'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                className="sr-only"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (!file) return;
+                  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) {
+                    setError('Formato no compatible. Usá JPG, PNG, WebP, GIF o AVIF.');
+                    return;
+                  }
+                  if (file.size > MAX_TRADE_IMAGE_SIZE) {
+                    setError('La imagen no puede superar los 10 MB.');
+                    return;
+                  }
+                  setError('');
+                  setChartImage(file);
+                  setRemoveExistingImage(false);
+                }}
+              />
+            </label>
+            <span className="sc-sub">JPG, PNG, WebP, GIF o AVIF · máximo 10 MB</span>
+            {(imagePreviewUrl || (existingImageUrl && !removeExistingImage)) && (
+              <div className="flex items-start gap-3">
+                <img
+                  src={imagePreviewUrl ?? existingImageUrl ?? undefined}
+                  alt="Vista previa de la operativa"
+                  className="rounded-lg border border-[var(--line2)] object-cover"
+                  style={{ width: 120, height: 80 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setChartImage(null);
+                    setRemoveExistingImage(true);
+                  }}
+                >
+                  Quitar imagen
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="field">
+            <label>O pegá un link de TradingView (opcional)</label>
             <input
               type="url"
               value={tradingviewLink}

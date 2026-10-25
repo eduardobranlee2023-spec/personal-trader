@@ -425,8 +425,18 @@ const StatsPage: React.FC = () => {
             <StatCard
               label="Mejor Mes"
               value={stats.bestMonth ? fmtMoney(stats.bestMonth.pnl, true) : '—'}
-              sub={stats.worstMonth ? `Peor mes: ${fmtMoney(stats.worstMonth.pnl, true)}` : 'Sin datos'}
-              icon={<Calendar className="w-5 h-5 text-primary" />}
+              sub={stats.bestMonth?.label ?? 'Sin datos'}
+              accent={stats.bestMonth !== null && stats.bestMonth.pnl >= 0}
+              negative={stats.bestMonth !== null && stats.bestMonth.pnl < 0}
+              icon={<TrendingUp className="w-5 h-5 text-primary" />}
+            />
+            <StatCard
+              label="Peor Mes"
+              value={stats.worstMonth ? fmtMoney(stats.worstMonth.pnl, true) : '—'}
+              sub={stats.worstMonth?.label ?? 'Sin datos'}
+              accent={stats.worstMonth !== null && stats.worstMonth.pnl >= 0}
+              negative={stats.worstMonth !== null && stats.worstMonth.pnl < 0}
+              icon={<TrendingDown className="w-5 h-5 text-primary" />}
             />
           </div>
 

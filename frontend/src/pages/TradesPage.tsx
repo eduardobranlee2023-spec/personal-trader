@@ -4,10 +4,11 @@ import TradeForm from '../components/trades/TradeForm';
 import { useTrades } from '../hooks/useTrades';
 import { useAccounts } from '../contexts/AccountContext';
 import { supabase } from '../lib/supabase';
+import { createTradeImageUrl, getTradeImagePath, isTradeImage, removeTradeImageIfUnused } from '../lib/tradeImages';
 import type { Trade } from '../hooks/useTrades';
 import {
   Plus, BarChart2, TrendingUp, TrendingDown, Clock, Filter,
-  Pencil, ExternalLink, Trash2
+  Pencil, ExternalLink, Trash2, Eye, X
 } from 'lucide-react';
 
 const statusTag: Record<string, string> = {
@@ -22,6 +23,11 @@ const TradesPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewingTrade, setViewingTrade] = useState<Trade | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [isLoadingImage, setIsLoadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [assetFilter, setAssetFilter] = useState('');
   const [dirFilter, setDirFilter] = useState('');
@@ -37,10 +43,39 @@ const TradesPage: React.FC = () => {
   const openNew = () => { setEditingTrade(null); setShowForm(true); };
   const openEdit = (t: Trade) => { setEditingTrade(t); setShowForm(true); };
 
+  const openTradeImage = async (trade: Trade) => {
+    const imagePath = getTradeImagePath(trade.tradingview_link);
+    if (!imagePath) return;
+
+    setIsLoadingImage(true);
+    setImageError(null);
+    const { url, error } = await createTradeImageUrl(imagePath);
+    setIsLoadingImage(false);
+    if (error || !url) {
+      setImageError(`No se pudo abrir la imagen: ${error?.message ?? 'error desconocido'}`);
+      return;
+    }
+    setViewingTrade(trade);
+    setImageError(null);
+    setPreviewImageUrl(url);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('¿Eliminar esta operación?')) return;
     setDeletingId(id);
-    await supabase.from('trades').delete().eq('id', id);
+    setDeleteError(null);
+    const tradeToDelete = trades.find(trade => trade.id === id);
+    const { error } = await supabase.from('trades').delete().eq('id', id);
+    if (error) {
+      setDeleteError(`No se pudo eliminar la operación: ${error.message}`);
+      setDeletingId(null);
+      return;
+    }
+    const imagePath = getTradeImagePath(tradeToDelete?.tradingview_link ?? null);
+    if (imagePath) {
+      const imageRemovalError = await removeTradeImageIfUnused(imagePath);
+      if (imageRemovalError) console.error('No se pudo limpiar la imagen de la operativa eliminada:', imageRemovalError);
+    }
     setDeletingId(null);
     refresh();
     refreshAccounts();
@@ -111,6 +146,10 @@ const TradesPage: React.FC = () => {
           </button>
         )}
       </div>
+
+      {deleteError && (
+        <div className="alert alert-err mb-4" role="alert">{deleteError}</div>
+      )}
 
       {isLoading && (
         <div className="flex items-center justify-center py-20 text-textMuted gap-2">
@@ -192,7 +231,18 @@ const TradesPage: React.FC = () => {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition">
-                        {trade.tradingview_link && (
+                        {isTradeImage(trade.tradingview_link) ? (
+                          <button
+                            type="button"
+                            onClick={() => void openTradeImage(trade)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ height: 32, padding: '0 9px', fontSize: 11 }}
+                            title="Ver operativa"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver operativa
+                          </button>
+                        ) : trade.tradingview_link && (
                           <a href={trade.tradingview_link} target="_blank" rel="noreferrer" className="btn-icon" style={{ width: 32, height: 32 }} title="TradingView">
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
@@ -253,7 +303,15 @@ const TradesPage: React.FC = () => {
                   )}
 
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-                    {trade.tradingview_link && (
+                    {isTradeImage(trade.tradingview_link) ? (
+                      <button
+                        type="button"
+                        onClick={() => void openTradeImage(trade)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        <Eye className="w-3 h-3" /> Ver operativa
+                      </button>
+                    ) : trade.tradingview_link && (
                       <a href={trade.tradingview_link} target="_blank" rel="noreferrer" className="text-xs text-primary flex items-center gap-1">
                         <ExternalLink className="w-3 h-3" /> TradingView
                       </a>
@@ -270,6 +328,40 @@ const TradesPage: React.FC = () => {
             })}
           </div>
         </>
+      )}
+
+      {imageError && (
+        <div className="alert alert-err mt-4" role="alert">{imageError}</div>
+      )}
+
+      {isLoadingImage && (
+        <div className="modal" role="status" aria-live="polite">
+          <div className="modal-card p-6 flex items-center justify-center gap-3 text-text">
+            <span className="spin" style={{ width: 20, height: 20, borderWidth: 2 }} />
+            Cargando imagen...
+          </div>
+        </div>
+      )}
+
+      {viewingTrade && previewImageUrl && (
+        <div className="modal" onClick={() => setViewingTrade(null)}>
+          <div className="modal-card" onClick={event => event.stopPropagation()}>
+            <div className="modal-head">
+              <h3>Operativa · {viewingTrade.asset}</h3>
+              <button type="button" onClick={() => setViewingTrade(null)} className="btn-icon" aria-label="Cerrar imagen">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <img
+                src={previewImageUrl}
+                alt={`Gráfico de la operativa ${viewingTrade.asset} del ${viewingTrade.trade_date}`}
+                className="w-full rounded-lg"
+              />
+              <p className="sc-sub mt-3">{viewingTrade.trade_date} · {viewingTrade.timeframe} · {viewingTrade.session}</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {showForm && (

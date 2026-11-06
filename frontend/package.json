@@ -18,6 +18,9 @@
     "desktop:build": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "@paypal/react-paypal-js": "^10.5.1",
     "@supabase/supabase-js": "^2.112.2",
     "lucide-react": "^1.30.0",
@@ -35,7 +38,7 @@
     "autoprefixer": "^10.5.4",
     "concurrently": "^9.1.2",
     "electron": "^31.7.1",
-    "electron-builder": "^24.13.0",
+    "electron-builder": "^24.13.3",
     "oxlint": "^1.75.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",

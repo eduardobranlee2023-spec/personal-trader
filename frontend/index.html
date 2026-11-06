@@ -751,23 +751,50 @@ if(term&&!RM&&window.matchMedia('(pointer:fine)').matches){
   });
 }
 
-/* ============ instalación de la app de escritorio ============ */
+/* ============ instalación de la app (Desktop / Móvil) ============ */
 var desktopProtocol='personaltrader://open';
-var desktopDownloadUrl='https://github.com/eduardobranlee2023-spec/personal-trader/releases/latest/download/personal-trader-linux.AppImage';
+var downloadWindowsUrl='/Personal-Trader-Setup.exe';
+var downloadAndroidUrl='/Personal-Trader.apk';
+var downloadLinuxUrl='https://github.com/eduardobranlee2023-spec/personal-trader/releases/latest/download/personal-trader-linux.AppImage';
+
+var ua = navigator.userAgent || '';
+var isAndroid = /Android/i.test(ua);
+var isLinux = /Linux/i.test(ua) && !isAndroid;
+
+var currentDownloadUrl = isAndroid ? downloadAndroidUrl : (isLinux ? downloadLinuxUrl : downloadWindowsUrl);
+
+function triggerDirectDownload(url){
+  var a=document.createElement('a');
+  a.href=url;
+  a.setAttribute('download','');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 function tryDesktopInstall(event){
   if(event){event.preventDefault();}
-  if(!desktopDownloadUrl){
+  if(!currentDownloadUrl){
     window.location.href='/login';
     return;
   }
+  // En Android o móviles, disparar la descarga directa inmediatamente
+  if (isAndroid) {
+    triggerDirectDownload(currentDownloadUrl);
+    return;
+  }
+
+  // En PC de escritorio, verificar si la app ya está instalada antes de descargar
   var started=Date.now();
   var iframe=document.createElement('iframe');
   iframe.style.display='none';
   iframe.setAttribute('src',desktopProtocol);
   document.body.appendChild(iframe);
+
   setTimeout(function(){
-    if(Date.now()-started < 1200){
-      window.location.href=desktopDownloadUrl;
+    try { document.body.removeChild(iframe); } catch(e){}
+    if(Date.now()-started < 1500){
+      triggerDirectDownload(currentDownloadUrl);
     }
   },900);
 }

@@ -4,11 +4,11 @@ import TradeForm from '../components/trades/TradeForm';
 import { useTrades } from '../hooks/useTrades';
 import { useAccounts } from '../contexts/AccountContext';
 import { supabase } from '../lib/supabase';
-import { createTradeImageUrl, getTradeImagePath, isTradeImage, removeTradeImageIfUnused } from '../lib/tradeImages';
+import { createTradeImageUrls, getTradeImagePaths, isTradeImage, removeMultipleTradeImagesIfUnused } from '../lib/tradeImages';
 import type { Trade } from '../hooks/useTrades';
 import {
   Plus, BarChart2, TrendingUp, TrendingDown, Clock, Filter,
-  Pencil, ExternalLink, Trash2, Eye, X
+  Pencil, ExternalLink, Trash2, Eye, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const statusTag: Record<string, string> = {
@@ -24,7 +24,8 @@ const TradesPage: React.FC = () => {
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewingTrade, setViewingTrade] = useState<Trade | null>(null);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageUrls, setPreviewImageUrls] = useState<string[]>([]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -43,21 +44,21 @@ const TradesPage: React.FC = () => {
   const openNew = () => { setEditingTrade(null); setShowForm(true); };
   const openEdit = (t: Trade) => { setEditingTrade(t); setShowForm(true); };
 
-  const openTradeImage = async (trade: Trade) => {
-    const imagePath = getTradeImagePath(trade.tradingview_link);
-    if (!imagePath) return;
+  const openTradeImages = async (trade: Trade) => {
+    const imagePaths = getTradeImagePaths(trade.tradingview_link);
+    if (imagePaths.length === 0) return;
 
     setIsLoadingImage(true);
     setImageError(null);
-    const { url, error } = await createTradeImageUrl(imagePath);
+    const urls = await createTradeImageUrls(imagePaths);
     setIsLoadingImage(false);
-    if (error || !url) {
-      setImageError(`No se pudo abrir la imagen: ${error?.message ?? 'error desconocido'}`);
+    if (urls.length === 0) {
+      setImageError('No se pudieron cargar las imágenes de la operativa.');
       return;
     }
     setViewingTrade(trade);
-    setImageError(null);
-    setPreviewImageUrl(url);
+    setActiveImageIndex(0);
+    setPreviewImageUrls(urls);
   };
 
   const handleDelete = async (id: string) => {
@@ -71,10 +72,9 @@ const TradesPage: React.FC = () => {
       setDeletingId(null);
       return;
     }
-    const imagePath = getTradeImagePath(tradeToDelete?.tradingview_link ?? null);
-    if (imagePath) {
-      const imageRemovalError = await removeTradeImageIfUnused(imagePath);
-      if (imageRemovalError) console.error('No se pudo limpiar la imagen de la operativa eliminada:', imageRemovalError);
+    const imagePaths = getTradeImagePaths(tradeToDelete?.tradingview_link ?? null);
+    if (imagePaths.length > 0) {
+      void removeMultipleTradeImagesIfUnused(imagePaths);
     }
     setDeletingId(null);
     refresh();
@@ -234,13 +234,13 @@ const TradesPage: React.FC = () => {
                         {isTradeImage(trade.tradingview_link) ? (
                           <button
                             type="button"
-                            onClick={() => void openTradeImage(trade)}
+                            onClick={() => void openTradeImages(trade)}
                             className="btn btn-ghost btn-sm"
                             style={{ height: 32, padding: '0 9px', fontSize: 11 }}
                             title="Ver operativa"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            Ver operativa
+                            Ver operativa {getTradeImagePaths(trade.tradingview_link).length > 1 ? `(${getTradeImagePaths(trade.tradingview_link).length})` : ''}
                           </button>
                         ) : trade.tradingview_link && (
                           <a href={trade.tradingview_link} target="_blank" rel="noreferrer" className="btn-icon" style={{ width: 32, height: 32 }} title="TradingView">
@@ -306,10 +306,10 @@ const TradesPage: React.FC = () => {
                     {isTradeImage(trade.tradingview_link) ? (
                       <button
                         type="button"
-                        onClick={() => void openTradeImage(trade)}
+                        onClick={() => void openTradeImages(trade)}
                         className="btn btn-ghost btn-sm"
                       >
-                        <Eye className="w-3 h-3" /> Ver operativa
+                        <Eye className="w-3 h-3" /> Ver operativa {getTradeImagePaths(trade.tradingview_link).length > 1 ? `(${getTradeImagePaths(trade.tradingview_link).length})` : ''}
                       </button>
                     ) : trade.tradingview_link && (
                       <a href={trade.tradingview_link} target="_blank" rel="noreferrer" className="text-xs text-primary flex items-center gap-1">
@@ -343,22 +343,73 @@ const TradesPage: React.FC = () => {
         </div>
       )}
 
-      {viewingTrade && previewImageUrl && (
+      {viewingTrade && previewImageUrls.length > 0 && (
         <div className="modal" onClick={() => setViewingTrade(null)}>
-          <div className="modal-card" onClick={event => event.stopPropagation()}>
+          <div className="modal-card modal-lg" onClick={event => event.stopPropagation()}>
             <div className="modal-head">
-              <h3>Operativa · {viewingTrade.asset}</h3>
+              <div className="flex items-center gap-2">
+                <h3>Operativa · {viewingTrade.asset}</h3>
+                {previewImageUrls.length > 1 && (
+                  <span className="sc-sub font-mono text-xs">
+                    ({activeImageIndex + 1} de {previewImageUrls.length})
+                  </span>
+                )}
+              </div>
               <button type="button" onClick={() => setViewingTrade(null)} className="btn-icon" aria-label="Cerrar imagen">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4">
-              <img
-                src={previewImageUrl}
-                alt={`Gráfico de la operativa ${viewingTrade.asset} del ${viewingTrade.trade_date}`}
-                className="w-full rounded-lg"
-              />
-              <p className="sc-sub mt-3">{viewingTrade.trade_date} · {viewingTrade.timeframe} · {viewingTrade.session}</p>
+            <div className="p-4 space-y-3">
+              {/* Contenedor de la imagen con navegación si hay más de 1 */}
+              <div className="relative flex items-center justify-center bg-black/40 rounded-lg overflow-hidden min-h-[300px] max-h-[70vh]">
+                <img
+                  src={previewImageUrls[activeImageIndex]}
+                  alt={`Gráfico de la operativa ${viewingTrade.asset} (${activeImageIndex + 1})`}
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg"
+                />
+
+                {previewImageUrls.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActiveImageIndex(prev => (prev > 0 ? prev - 1 : previewImageUrls.length - 1))}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 btn-icon bg-black/60 hover:bg-black/90 text-white rounded-full p-2"
+                      title="Imagen anterior"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveImageIndex(prev => (prev < previewImageUrls.length - 1 ? prev + 1 : 0))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 btn-icon bg-black/60 hover:bg-black/90 text-white rounded-full p-2"
+                      title="Siguiente imagen"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Miniaturas de selección rápida */}
+              {previewImageUrls.length > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  {previewImageUrls.map((url, idx) => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`relative rounded-md overflow-hidden border-2 transition-all ${
+                        activeImageIndex === idx ? 'border-primary scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                      style={{ width: 60, height: 40 }}
+                    >
+                      <img src={url} alt={`Miniatura ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <p className="sc-sub">{viewingTrade.trade_date} · {viewingTrade.timeframe} · {viewingTrade.session}</p>
             </div>
           </div>
         </div>

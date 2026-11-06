@@ -5,8 +5,16 @@ import { useAccounts } from '../../contexts/AccountContext';
 import { useStrategies } from '../../hooks/useTrades';
 import type { Trade, TradeSession, TradeDirection, TradeStatus } from '../../hooks/useTrades';
 import type { FundedPhase } from '../../contexts/AccountContext';
-import { createTradeImageUrl, getTradeImagePath, MAX_TRADE_IMAGE_SIZE, removeTradeImageIfUnused, TRADE_IMAGE_PREFIX, uploadTradeImage } from '../../lib/tradeImages';
-import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2, Search, ImagePlus } from 'lucide-react';
+import {
+  createTradeImageUrl,
+  getTradeImagePaths,
+  MAX_TRADE_IMAGE_SIZE,
+  MAX_TRADE_IMAGES,
+  removeMultipleTradeImagesIfUnused,
+  encodeTradeImagePaths,
+  uploadTradeImage,
+} from '../../lib/tradeImages';
+import { X, Save, Loader2, AlertCircle, ArrowUpRight, ArrowDownRight, Trash2, Search, ImagePlus, ClipboardPaste } from 'lucide-react';
 
 type Props = {
   trade?: Trade | null;
@@ -85,12 +93,16 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [zone, setZone] = useState(trade?.zone ?? '');
   const [direction, setDirection] = useState<TradeDirection>(trade?.direction ?? 'compra');
   const [entryReason, setEntryReason] = useState(trade?.entry_reason ?? '');
-  const existingImagePath = getTradeImagePath(trade?.tradingview_link ?? null);
-  const [tradingviewLink, setTradingviewLink] = useState(existingImagePath ? '' : trade?.tradingview_link ?? '');
-  const [chartImage, setChartImage] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
-  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const existingImagePaths = getTradeImagePaths(trade?.tradingview_link ?? null);
+  const [tradingviewLink, setTradingviewLink] = useState(existingImagePaths.length > 0 ? '' : trade?.tradingview_link ?? '');
+
+  // Imágenes ya guardadas en storage (paths y urls firmadas)
+  const [persistedImages, setPersistedImages] = useState<{ path: string; url: string }[]>([]);
+  // Nuevas imágenes seleccionadas o pegadas en esta sesión
+  const [newImageFiles, setNewImageFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [isPasting, setIsPasting] = useState(false);
+
   const [strategyId, setStrategyId] = useState(trade?.strategy_id ?? '');
   const [riskReward, setRiskReward] = useState(trade?.risk_reward ?? '');
   const [status, setStatus] = useState<TradeStatus>(trade?.status ?? 'en curso');
@@ -101,29 +113,146 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Cargar URLs para imágenes ya persistidas
   useEffect(() => {
-    if (!chartImage) {
-      setImagePreviewUrl(null);
+    if (existingImagePaths.length === 0) return;
+    let isCurrent = true;
+
+    Promise.all(
+      existingImagePaths.map(async path => {
+        const { url } = await createTradeImageUrl(path);
+        return url ? { path, url } : null;
+      })
+    ).then(items => {
+      if (!isCurrent) return;
+      const valid = items.filter((x): x is { path: string; url: string } => x !== null);
+      setPersistedImages(valid);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [trade?.tradingview_link]);
+
+  // Manejar adición de archivos (tanto desde input file como desde portapapeles)
+  const handleAddFiles = (files: File[]) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+    const currentTotal = persistedImages.length + newImageFiles.length;
+    const remainingSlots = MAX_TRADE_IMAGES - currentTotal;
+
+    if (remainingSlots <= 0) {
+      setError(`Se permite un máximo de ${MAX_TRADE_IMAGES} imágenes por operación.`);
       return;
     }
 
-    const url = URL.createObjectURL(chartImage);
-    setImagePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [chartImage]);
+    const filesToAdd: { id: string; file: File; previewUrl: string }[] = [];
+    for (const file of files) {
+      if (filesToAdd.length >= remainingSlots) {
+        setError(`Límite alcanzado: se agregaron solo hasta completar el máximo de ${MAX_TRADE_IMAGES} imágenes.`);
+        break;
+      }
+      if (!validTypes.includes(file.type)) {
+        setError('Formato no compatible. Usá JPG, PNG, WebP, GIF o AVIF.');
+        continue;
+      }
+      if (file.size > MAX_TRADE_IMAGE_SIZE) {
+        setError('Cada imagen no puede superar los 10 MB.');
+        continue;
+      }
+      setError('');
+      filesToAdd.push({
+        id: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
 
-  useEffect(() => {
-    if (!existingImagePath) return;
-    let isCurrent = true;
+    if (filesToAdd.length > 0) {
+      setNewImageFiles(prev => [...prev, ...filesToAdd]);
+    }
+  };
 
-    void createTradeImageUrl(existingImagePath).then(({ url, error: urlError }) => {
-      if (!isCurrent) return;
-      if (urlError) setError(`No se pudo cargar la imagen guardada: ${urlError.message}`);
-      else setExistingImageUrl(url);
+  const removePersistedImage = (path: string) => {
+    setPersistedImages(prev => prev.filter(img => img.path !== path));
+  };
+
+  const removeNewFile = (id: string) => {
+    setNewImageFiles(prev => {
+      const target = prev.find(item => item.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter(item => item.id !== id);
     });
+  };
 
-    return () => { isCurrent = false; };
-  }, [existingImagePath]);
+  // Pegar imágenes con Ctrl + V directamente desde el portapapeles
+  const handlePaste = (e: React.ClipboardEvent | ClipboardEvent) => {
+    const clipboardData = 'clipboardData' in e ? e.clipboardData : null;
+    if (!clipboardData) return;
+
+    const items = clipboardData.items;
+    const pastedImageFiles: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          pastedImageFiles.push(file);
+        }
+      }
+    }
+
+    if (pastedImageFiles.length > 0) {
+      e.preventDefault();
+      handleAddFiles(pastedImageFiles);
+    }
+  };
+
+  // Botón manual para leer desde el portapapeles si la API Clipboard está disponible
+  const handlePasteFromClipboardApi = async () => {
+    try {
+      setIsPasting(true);
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        setError('Tu navegador no permite lectura directa del portapapeles con botón. Podés presionar Ctrl + V para pegar la imagen.');
+        return;
+      }
+      const clipboardItems = await navigator.clipboard.read();
+      const files: File[] = [];
+      for (const item of clipboardItems) {
+        const imageType = item.types.find(type => type.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const extension = imageType.split('/')[1] || 'png';
+          const file = new File([blob], `screenshot-${Date.now()}.${extension}`, { type: imageType });
+          files.push(file);
+        }
+      }
+      if (files.length === 0) {
+        setError('No se encontró ninguna imagen en el portapapeles. Copiá una captura e intentá de nuevo o usá Ctrl + V.');
+      } else {
+        handleAddFiles(files);
+      }
+    } catch (err) {
+      setError('Presioná Ctrl + V sobre el formulario para pegar la imagen copiada.');
+    } finally {
+      setIsPasting(false);
+    }
+  };
+
+  // Listener global de paste mientras el modal está abierto
+  useEffect(() => {
+    const windowPasteListener = (e: ClipboardEvent) => {
+      // Si el foco está en un input de texto o textarea normal y no tiene imágenes en el portapapeles, dejar que pegue texto
+      const hasImage = Array.from(e.clipboardData?.items ?? []).some(it => it.type.startsWith('image/'));
+      if (hasImage) {
+        handlePaste(e);
+      }
+    };
+    window.addEventListener('paste', windowPasteListener);
+    return () => {
+      window.removeEventListener('paste', windowPasteListener);
+    };
+  }, [persistedImages.length, newImageFiles.length]);
 
   const getAmounts = (accId: string): AccountAmounts =>
     accountAmounts[accId] ?? { investment: '', result: '' };
@@ -149,8 +278,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       setError('El enlace de TradingView debe comenzar con http:// o https://');
       return;
     }
-    if (chartImage && chartImage.size > MAX_TRADE_IMAGE_SIZE) {
-      setError('La imagen no puede superar los 10 MB.');
+    if (newImageFiles.some(item => item.file.size > MAX_TRADE_IMAGE_SIZE)) {
+      setError('Ninguna imagen puede superar los 10 MB.');
       return;
     }
     if (riskReward && !/^1:\d+(\.\d+)?$/.test(riskReward)) {
@@ -161,20 +290,31 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
     setIsSaving(true);
     setError('');
 
-    let uploadedImagePath: string | null = null;
+    const newlyUploadedPaths: string[] = [];
     try {
-      let imageValue = tradingviewLink.trim() || (
-        existingImagePath && !removeExistingImage ? trade!.tradingview_link : null
-      );
-
-      if (chartImage) {
-        const { path, error: uploadError } = await uploadTradeImage(chartImage, user!.id);
-        if (uploadError || !path) {
-          setError(`No se pudo subir la imagen: ${uploadError?.message ?? 'error desconocido'}`);
-          return;
+      // 1. Subir cualquier nueva imagen agregada (sea por selector de archivos o pegada con Ctrl+V)
+      if (newImageFiles.length > 0) {
+        setIsUploadingImages(true);
+        for (const item of newImageFiles) {
+          const { path, error: uploadError } = await uploadTradeImage(item.file, user!.id);
+          if (uploadError || !path) {
+            throw new Error(`No se pudo subir una de las imágenes: ${uploadError?.message ?? 'error desconocido'}`);
+          }
+          newlyUploadedPaths.push(path);
         }
-        uploadedImagePath = path;
-        imageValue = `${TRADE_IMAGE_PREFIX}${path}`;
+        setIsUploadingImages(false);
+      }
+
+      // 2. Determinar el valor para tradingview_link:
+      // Si el usuario ingresó un link manual de TradingView y no hay imágenes, se usa ese link.
+      // Si hay imágenes (persisted + new), se codifican en formato storage-multi:...
+      let imageValue: string | null = null;
+      const combinedPaths = [...persistedImages.map(img => img.path), ...newlyUploadedPaths];
+
+      if (combinedPaths.length > 0) {
+        imageValue = encodeTradeImagePaths(combinedPaths);
+      } else if (tradingviewLink.trim()) {
+        imageValue = tradingviewLink.trim();
       }
 
       const basePayload = {
@@ -187,7 +327,7 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
         zone: zone.trim() || null,
         direction,
         entry_reason: entryReason.trim() || null,
-        tradingview_link: imageValue || null,
+        tradingview_link: imageValue,
         commission_percentage: null,
         risk_reward: riskReward.trim() || null,
         notes: notes.trim() || null,
@@ -239,29 +379,31 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       }
 
       if (saveError) {
-        if (uploadedImagePath) {
-          const { error: cleanupError } = await supabase.storage.from('trade-images').remove([uploadedImagePath]);
-          if (cleanupError) console.error('No se pudo limpiar la imagen subida tras fallar el registro:', cleanupError);
+        if (newlyUploadedPaths.length > 0) {
+          await supabase.storage.from('trade-images').remove(newlyUploadedPaths);
         }
         setError(saveError.message);
         return;
       }
 
-      if (existingImagePath && imageValue !== trade!.tradingview_link) {
-        const removeError = await removeTradeImageIfUnused(existingImagePath);
-        if (removeError) console.error('No se pudo eliminar la imagen anterior de la operativa:', removeError);
+      // 3. Limpiar del storage cualquier imagen anterior que el usuario haya quitado durante la edición
+      if (existingImagePaths.length > 0) {
+        const removedPaths = existingImagePaths.filter(p => !persistedImages.some(img => img.path === p));
+        if (removedPaths.length > 0) {
+          void removeMultipleTradeImagesIfUnused(removedPaths);
+        }
       }
 
       onSaved();
       onClose();
     } catch (saveError) {
-      if (uploadedImagePath) {
-        const { error: cleanupError } = await supabase.storage.from('trade-images').remove([uploadedImagePath]);
-        if (cleanupError) console.error('No se pudo limpiar la imagen subida tras fallar el registro:', cleanupError);
+      if (newlyUploadedPaths.length > 0) {
+        await supabase.storage.from('trade-images').remove(newlyUploadedPaths);
       }
       setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la operación.');
     } finally {
       setIsSaving(false);
+      setIsUploadingImages(false);
     }
   };
 
@@ -276,9 +418,8 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
       setError(err.message);
       setIsDeleting(false);
     } else {
-      if (existingImagePath) {
-        const removeError = await removeTradeImageIfUnused(existingImagePath);
-        if (removeError) console.error('No se pudo eliminar la imagen de la operativa:', removeError);
+      if (existingImagePaths.length > 0) {
+        void removeMultipleTradeImagesIfUnused(existingImagePaths);
       }
       onSaved();
       onClose();
@@ -551,51 +692,106 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
           </div>
 
           <div className="field">
-            <label>Imagen de la operativa (opcional)</label>
-            <label className="btn btn-ghost btn-sm w-fit cursor-pointer">
-              <ImagePlus className="w-4 h-4" />
-              {chartImage ? 'Cambiar imagen' : 'Subir imagen'}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                className="sr-only"
-                onChange={event => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
-                  if (!file) return;
-                  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) {
-                    setError('Formato no compatible. Usá JPG, PNG, WebP, GIF o AVIF.');
-                    return;
-                  }
-                  if (file.size > MAX_TRADE_IMAGE_SIZE) {
-                    setError('La imagen no puede superar los 10 MB.');
-                    return;
-                  }
-                  setError('');
-                  setChartImage(file);
-                  setRemoveExistingImage(false);
-                }}
-              />
-            </label>
-            <span className="sc-sub">JPG, PNG, WebP, GIF o AVIF · máximo 10 MB</span>
-            {(imagePreviewUrl || (existingImageUrl && !removeExistingImage)) && (
-              <div className="flex items-start gap-3">
-                <img
-                  src={imagePreviewUrl ?? existingImageUrl ?? undefined}
-                  alt="Vista previa de la operativa"
-                  className="rounded-lg border border-[var(--line2)] object-cover"
-                  style={{ width: 120, height: 80 }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    setChartImage(null);
-                    setRemoveExistingImage(true);
+            <div className="flex items-center justify-between">
+              <label className="mb-0">Imágenes de la operativa (máximo {MAX_TRADE_IMAGES})</label>
+              <span className="sc-sub">
+                {persistedImages.length + newImageFiles.length} de {MAX_TRADE_IMAGES}
+              </span>
+            </div>
+
+            {/* Controles para subir desde archivo o pegar desde portapapeles */}
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <label
+                className={`btn btn-ghost btn-sm cursor-pointer ${
+                  persistedImages.length + newImageFiles.length >= MAX_TRADE_IMAGES ? 'opacity-50 pointer-events-none' : ''
+                }`}
+              >
+                <ImagePlus className="w-4 h-4" />
+                Subir desde archivos
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="sr-only"
+                  disabled={persistedImages.length + newImageFiles.length >= MAX_TRADE_IMAGES}
+                  onChange={event => {
+                    const files = event.target.files ? Array.from(event.target.files) : [];
+                    event.target.value = '';
+                    if (files.length > 0) handleAddFiles(files);
                   }}
-                >
-                  Quitar imagen
-                </button>
+                />
+              </label>
+
+              <button
+                type="button"
+                className={`btn btn-ghost btn-sm ${
+                  persistedImages.length + newImageFiles.length >= MAX_TRADE_IMAGES ? 'opacity-50 pointer-events-none' : ''
+                }`}
+                onClick={() => void handlePasteFromClipboardApi()}
+                disabled={isPasting || persistedImages.length + newImageFiles.length >= MAX_TRADE_IMAGES}
+                title="Pega una imagen copiada en tu portapapeles o presiona Ctrl + V directamente"
+              >
+                {isPasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardPaste className="w-4 h-4" />}
+                Pegar imagen (o Ctrl+V)
+              </button>
+            </div>
+
+            <span className="sc-sub block mt-0.5">
+              Podés seleccionar archivos o copiar un gráfico (TradingView, captura de pantalla, etc.) y presionar <strong>Ctrl + V</strong> en cualquier parte.
+            </span>
+
+            {/* Galería de vistas previas de imágenes */}
+            {(persistedImages.length > 0 || newImageFiles.length > 0) && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                {/* Imágenes ya existentes guardadas en Supabase */}
+                {persistedImages.map((img, idx) => (
+                  <div key={img.path} className="relative group rounded-lg border border-[var(--line2)] overflow-hidden bg-black/20 aspect-video flex items-center justify-center">
+                    <img
+                      src={img.url}
+                      alt={`Operativa ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => removePersistedImage(img.path)}
+                        className="btn-icon bg-red-500/80 hover:bg-red-600 text-white p-1 rounded-full"
+                        style={{ width: 28, height: 28 }}
+                        title="Quitar imagen"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="absolute bottom-1 left-1 bg-black/70 text-[10px] px-1.5 py-0.5 rounded text-white font-mono">
+                      {idx + 1}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Nuevas imágenes pendientes de guardar */}
+                {newImageFiles.map((item, idx) => (
+                  <div key={item.id} className="relative group rounded-lg border border-primary/40 overflow-hidden bg-black/20 aspect-video flex items-center justify-center">
+                    <img
+                      src={item.previewUrl}
+                      alt={`Nueva ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => removeNewFile(item.id)}
+                        className="btn-icon bg-red-500/80 hover:bg-red-600 text-white p-1 rounded-full"
+                        style={{ width: 28, height: 28 }}
+                        title="Quitar imagen"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="absolute bottom-1 left-1 bg-primary/80 text-[10px] px-1.5 py-0.5 rounded text-white font-mono">
+                      Nueva {persistedImages.length + idx + 1}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -644,9 +840,9 @@ const TradeForm: React.FC<Props> = ({ trade, knownAssets, onClose, onSaved }) =>
                 Cancelar
               </button>
             )}
-            <button type="submit" form="trade-form" disabled={isSaving} className="btn btn-primary btn-sm">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {isEdit ? 'Guardar cambios' : 'Registrar'}
+            <button type="submit" form="trade-form" disabled={isSaving || isUploadingImages} className="btn btn-primary btn-sm">
+              {isSaving || isUploadingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {isUploadingImages ? 'Subiendo imágenes...' : isEdit ? 'Guardar cambios' : 'Registrar'}
             </button>
           </div>
         </div>
